@@ -1,6 +1,7 @@
 import { dop } from "./dop";
 import { flux2 } from "./flux-2";
 import { flux3 } from "./flux-3";
+import { genjutsuMotionTransfer } from "./genjutsu";
 import { grokImagine2 } from "./grok-imagine-2";
 import { grokImagineVideo15 } from "./grok-imagine-video-1.5";
 import { happyHorse1 } from "./happy-horse-1";
@@ -51,6 +52,7 @@ export const MODELS: readonly ModelEntry[] = [
   kling34k,
   kling3MotionStd,
   kling3MotionPro,
+  genjutsuMotionTransfer,
   flux2,
   grokImagine2,
   ideogram4,
