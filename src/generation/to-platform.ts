@@ -19,6 +19,9 @@ const MAP: Record<string, Mapper> = {
   "seedance-2.5": (plane) => mapSeedance(plane, "bytedance/seedance-2.5"),
   "seedance-2.5-edit": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-edit", false),
   "seedance-2.5-extend": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-extend", true),
+  "genjutsu-motion": (plane) => mapGenjutsu(plane, "higgsfield/genjutsu/motion-transfer/v1.0"),
+  // The platform publishes this path with the "higgsfiled" spelling.
+  "genjutsu-swap": (plane) => mapGenjutsu(plane, "higgsfiled/genjutsu/object-swap/v1.0"),
 };
 
 export function toPlatform(plane: GenerationPlane): Mapped {
@@ -90,6 +93,20 @@ function mapKlingMotion(plane: GenerationPlane, path: string): Mapped {
       ...(video ? { video_url: video } : {}),
       keep_original_sound: plane.settings.keepOriginalSound ? "yes" : "no",
       character_orientation: plane.settings.characterOrientation,
+    },
+  };
+}
+
+function mapGenjutsu(plane: GenerationPlane, path: string): Mapped {
+  const video = urls(plane, "video")[0];
+  const refs = urls(plane, "reference");
+  return {
+    path,
+    body: {
+      prompt: plane.prompt.text,
+      resolution: plane.settings.resolution,
+      ...(video ? { video_url: video } : {}),
+      ...(refs.length ? { image_urls: refs } : {}),
     },
   };
 }

@@ -1,6 +1,7 @@
 import { dop } from "./dop";
 import { flux2 } from "./flux-2";
 import { flux3 } from "./flux-3";
+import { genjutsuMotion, genjutsuSwap } from "./genjutsu";
 import { grokImagine2 } from "./grok-imagine-2";
 import { grokImagineVideo15 } from "./grok-imagine-video-1.5";
 import { happyHorse1 } from "./happy-horse-1";
@@ -39,6 +40,8 @@ import { zImageTurbo } from "./z-image-turbo";
 export const MODELS: readonly ModelEntry[] = [
   soul2,
   soulCinema,
+  genjutsuMotion,
+  genjutsuSwap,
   seedance25,
   seedance25Edit,
   seedance25Extend,
