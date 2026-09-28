@@ -20,6 +20,7 @@ import {
 import { klingO1 } from "./kling-o1";
 import { klingO3 } from "./kling-o3";
 import { ltx25Fast } from "./ltx-2.5-fast";
+import { marketingStudioImage } from "./marketing-studio";
 import { ltx25Pro } from "./ltx-2.5-pro";
 import { minimaxH3 } from "./minimax-h3";
 import { minimaxHailuo23 } from "./minimax-hailuo-2.3";
@@ -40,6 +41,7 @@ import { zImageTurbo } from "./z-image-turbo";
 export const MODELS: readonly ModelEntry[] = [
   soul2,
   soulCinema,
+  marketingStudioImage,
   genjutsuMotion,
   genjutsuSwap,
   seedance25,

@@ -62,6 +62,7 @@ type RunDraft = {
 };
 
 async function costOf(model: ModelEntry, plane: GenerationPlane): Promise<number | undefined> {
+  if (model.perResultUsd) return estimateCost(model, plane.settings, null) ?? undefined;
   if (!model.perSecondUsd) return undefined;
   const source = plane.media.video?.[0]?.url;
   const seconds = source ? await videoSeconds(source) : null;
