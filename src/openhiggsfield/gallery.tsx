@@ -138,7 +138,7 @@ const Tile = memo(function Tile({
   const cost = asCost(item.cost);
   const facts = [
     ...(item.meta ? item.meta.split(" · ") : []),
-    ...(cost ? [`≈ ${formatCost(cost)}`] : []),
+    ...(cost ? [formatCost(cost)] : []),
   ];
 
   /* Top-left, where a selection mark is looked for, and the one control on the

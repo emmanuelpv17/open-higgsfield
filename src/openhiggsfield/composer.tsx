@@ -366,17 +366,17 @@ export function Composer({
               </div>
 
               <span className="ohf-generate-group">
-                <span
-                  className="ohf-estimate"
-                  data-known={estimate.kind === "price" || undefined}
-                  title={ESTIMATE_TIPS[estimate.kind]}
-                >
-                  {estimate.kind === "price"
-                    ? `≈ ${formatCost(scaleCost(estimate.cost, batchValue))}`
-                    : estimate.kind === "needs-video"
-                      ? "Add a video to price"
-                      : "Price not published"}
-                </span>
+                {estimate.kind !== "unknown" && (
+                  <span
+                    className="ohf-estimate"
+                    data-known={estimate.kind === "price" || undefined}
+                    title={ESTIMATE_TIPS[estimate.kind]}
+                  >
+                    {estimate.kind === "price"
+                      ? formatCost(scaleCost(estimate.cost, batchValue))
+                      : "Add a video to price"}
+                  </span>
+                )}
 
                 <span className="ohf-generate-slot ohf-tip ohf-tip--end" data-tip={generateTip}>
                   <button
@@ -494,10 +494,10 @@ function BatchStepper({
 
 type Estimate = { kind: "price"; cost: Cost } | { kind: "needs-video" } | { kind: "unknown" };
 
-const ESTIMATE_TIPS: Record<Estimate["kind"], string> = {
-  price: "Estimated from the platform's published price for these settings; a range where the page lists two rates",
+const ESTIMATE_TIPS: Record<"price" | "needs-video", string> = {
+  price:
+    "Estimated from the platform's published prices: a range where it lists two rates, a ceiling (≤) where it lists none for these settings",
   "needs-video": "This model is billed per second of the source video",
-  unknown: "The platform publishes no price for this model or these settings",
 };
 
 /* Cost of one result before the press is made. Models billed on their source
