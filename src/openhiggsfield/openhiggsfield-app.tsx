@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { hasPlatformCredentials, submitGeneration } from "@/generation/actions";
-import { MissingCredentialsError } from "@/generation/credentials";
-import { MODELS, getModel } from "@/generation/catalog";
+import { cancelGeneration, hasPlatformCredentials, submitGeneration } from "@/generation/actions";
+import { MISSING_KEY_MESSAGE } from "@/generation/credentials";
+import { MODELS, getModel, planeProblem } from "@/generation/catalog";
 import type { Surface } from "@/generation/catalog";
 import { assemblePlane } from "@/generation/plane";
-import type { GenerationStatus } from "@/generation/platform";
-import { POLL_DEADLINE_MS, stopWatching, watchRequest } from "@/generation/poll";
+import type { ErrorCode, GenerationStatus } from "@/generation/platform";
+import { POLL_DEADLINE_MS, WatchError, pollSoon, stopWatching, watchRequest } from "@/generation/poll";
 import { useActive } from "@/generation/stores/active";
 import { useImagePrompt, useVideoPrompt } from "@/generation/stores/prompt";
 import { useSettings } from "@/generation/stores/settings";
@@ -26,7 +26,7 @@ import {
   type GalleryView,
 } from "./data";
 import { Gallery } from "./gallery";
-import { loadHistory, mergeHistory, replaceRequest, saveHistory, stepRun, type RunRecord } from "./history";
+import { CANCELED_TEXT, loadHistory, mergeHistory, replaceRequest, saveHistory, stepRun, type RunRecord } from "./history";
 import { CloseIcon, UndoIcon } from "./icons";
 import { SelectionBar, type SaveProgress } from "./selection-bar";
 import { Topbar } from "./topbar";
@@ -43,7 +43,12 @@ export interface ActiveRun {
   modelLabel: string;
   ratio: string;
   startedAt: number;
+  /** Set once the platform has accepted the run, which is when it can be canceled. */
+  requestId?: string;
 }
+
+/** Where a cancel stands for one platform request. */
+export type CancelState = { phase: "sending" } | { phase: "sent" } | { phase: "refused"; reason: string };
 
 type RunDraft = {
   surface: Surface;
@@ -143,18 +148,20 @@ function failedRows(requestId: string, count: number, draft: RunDraft, error: st
 }
 
 function failureText(status: GenerationStatus): string {
-  if (status.status === "nsfw") return "the platform flagged the result as NSFW";
-  if (status.status === "canceled") return "the run was canceled";
+  if (status.status === "nsfw") return "content moderation rejected the input or the result";
+  if (status.status === "canceled") return CANCELED_TEXT;
   if (typeof status.error === "string" && status.error) return status.error;
   return "the platform reported a failure";
 }
 
-function describeError(caught: unknown): string {
-  const message = caught instanceof Error ? caught.message : String(caught);
-  if (caught instanceof MissingCredentialsError || message.includes("Missing platform key")) {
-    return "Add your platform key to generate.";
-  }
-  return `Generation failed — ${message}. Try again; if it repeats, check the key in the sidebar.`;
+/** Failures that mean the key itself needs attention, not the run. */
+function isKeyProblem(code: ErrorCode | "timeout" | undefined): boolean {
+  return code === "missing_key" || code === "invalid_key";
+}
+
+function describeFailure(code: ErrorCode | "timeout" | undefined, message: string): string {
+  if (code === "missing_key") return MISSING_KEY_MESSAGE;
+  return message;
 }
 
 export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: string }) {
@@ -181,6 +188,12 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const [saving, setSaving] = useState<SaveProgress | null>(null);
   const [keyConfigured, setKeyConfigured] = useState(false);
   const [keysOpen, setKeysOpen] = useState(false);
+  const [keyNotice, setKeyNotice] = useState<string | null>(null);
+  /* Presses still waiting on their request ids. Generate holds while any is,
+     so one click can never become two paid runs. */
+  const [submitting, setSubmitting] = useState(0);
+  const submittingRef = useRef(0);
+  const [cancels, setCancels] = useState<Record<string, CancelState>>({});
 
   const galleryRef = useRef<HTMLDivElement>(null);
   const rangeAnchor = useRef<number | null>(null);
@@ -273,8 +286,12 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
         }
       } catch (caught) {
         if (!alive.current) return;
-        const message = describeError(caught);
-        if (message.includes("platform key")) setKeysOpen(true);
+        const code = caught instanceof WatchError ? caught.code : undefined;
+        const message = describeFailure(code, caught instanceof Error ? caught.message : String(caught));
+        if (isKeyProblem(code)) {
+          setKeyNotice(message);
+          setKeysOpen(true);
+        }
         setHistory((prev) => {
           const next = replaceRequest(prev, requestId, failedRows(requestId, expected, draft, message));
           void saveHistory(next);
@@ -324,15 +341,22 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
      its own skeletons and keeps its own watch, so the composer is free the
      moment the tiles appear and any number of runs can be in flight. */
   const generate = useCallback(async () => {
+    if (submittingRef.current > 0) return;
     if (!keyConfigured) {
+      setKeyNotice(null);
       setKeysOpen(true);
-      setError("Add your platform key to generate.");
+      setError(MISSING_KEY_MESSAGE);
       return;
     }
     const plane = assemblePlane();
     if (!plane.prompt.text.trim()) return;
 
     const entry = getModel(plane.model);
+    const problem = planeProblem(entry, plane);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     const ratio = ratioToCss(
       plane.settings.aspectRatio,
       entry.surface === "image" ? "4 / 3" : "16 / 9",
@@ -357,9 +381,12 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
       ratio,
       startedAt,
     }));
-    const slots = native
+    /* Each slot is one platform request with its own submission id, so the
+       server can recognise a repeat of the same slot and answer it once. */
+    const slots = (native
       ? [{ skeletons: pending.map((slot) => slot.id) }]
-      : pending.map((slot) => ({ skeletons: [slot.id] }));
+      : pending.map((slot) => ({ skeletons: [slot.id] }))
+    ).map((slot) => ({ ...slot, submissionId: crypto.randomUUID() }));
     const draft: RunDraft = {
       surface: entry.surface,
       modelId: entry.id,
@@ -377,21 +404,49 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     setRuns((prev) => [...pending, ...prev]);
     galleryRef.current?.scrollTo({ top: 0, behavior: "smooth" });
 
-    const runOne = async (slot: { skeletons: string[] }) => {
+    /* A submit that fails leaves a failed tile with its reason and a retry,
+       not just a banner that the next message replaces. */
+    const failSlot = (slot: { skeletons: string[]; submissionId: string }, message: string) => {
+      const rows = failedRows(`local-${slot.submissionId}`, slot.skeletons.length, draft, message).map(
+        ({ requestId: _unused, ...row }) => row,
+      );
+      setHistory((prev) => {
+        const next = [...rows, ...prev];
+        void saveHistory(next);
+        return next;
+      });
+      setError((prev) => prev ?? message);
+    };
+
+    /* Resolves to the accepted request id, or null once the slot has failed. */
+    const submitOne = async (slot: { skeletons: string[]; submissionId: string }): Promise<string | null> => {
       try {
-        const queued = await submitGeneration(plane);
+        const answer = await submitGeneration({ plane, submissionId: slot.submissionId });
+        if (!alive.current) return null;
+        if (!answer.ok) {
+          const message = describeFailure(answer.code, answer.error);
+          if (isKeyProblem(answer.code)) {
+            setKeyNotice(message);
+            setKeysOpen(true);
+          }
+          failSlot(slot, message);
+          return null;
+        }
         setHistory((prev) => {
-          const next = [...runningRows(queued.requestId, slot.skeletons.length, draft), ...prev];
+          const next = [...runningRows(answer.requestId, slot.skeletons.length, draft), ...prev];
           void saveHistory(next);
           return next;
         });
-        setRuns((prev) => prev.filter((active) => !slot.skeletons.includes(active.id)));
-        await resume(queued.requestId, draft, slot.skeletons.length);
-      } catch (caught) {
-        if (!alive.current) return;
-        const message = describeError(caught);
-        if (message.includes("platform key")) setKeysOpen(true);
-        setError((prev) => prev ?? message);
+        return answer.requestId;
+      } catch {
+        if (!alive.current) return null;
+        /* The action never answered: whether the platform got the run is
+           unknown, so it is not sent again on its own. */
+        failSlot(
+          slot,
+          "Lost contact before Higgsfield confirmed this run, so it may or may not have started. Check open.higgsfield.ai before generating it again.",
+        );
+        return null;
       } finally {
         if (alive.current) {
           setRuns((prev) => prev.filter((active) => !slot.skeletons.includes(active.id)));
@@ -399,8 +454,56 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
       }
     };
 
-    await Promise.all(slots.map(runOne));
+    /* Generate holds only until every slot has its request id or its failure;
+       the watches that follow do not block the next press. */
+    submittingRef.current += 1;
+    setSubmitting(submittingRef.current);
+    let accepted: Array<string | null>;
+    try {
+      accepted = await Promise.all(slots.map(submitOne));
+    } finally {
+      submittingRef.current -= 1;
+      if (alive.current) setSubmitting(submittingRef.current);
+    }
+    await Promise.all(
+      accepted.map((requestId, index) =>
+        requestId ? resume(requestId, draft, slots[index]!.skeletons.length) : undefined,
+      ),
+    );
   }, [keyConfigured, resume]);
+
+  /* Cancel has to reach the platform — dropping the watch alone would leave the
+     run going and billed. The status poll then reports canceled, and that is
+     what turns the tile into a canceled run. */
+  const cancelRun = useCallback(async (requestId: string) => {
+    setCancels((prev) => ({ ...prev, [requestId]: { phase: "sending" } }));
+    let answer: Awaited<ReturnType<typeof cancelGeneration>>;
+    try {
+      answer = await cancelGeneration({ requestId });
+    } catch {
+      answer = { ok: false, error: "Lost contact with the studio server. Try canceling again.", code: "network" };
+    }
+    if (!alive.current) return;
+    if (answer.ok) {
+      setCancels((prev) => ({ ...prev, [requestId]: { phase: "sent" } }));
+      pollSoon();
+      return;
+    }
+    const failed = answer;
+    if (isKeyProblem(failed.code)) {
+      setKeyNotice(failed.error);
+      setKeysOpen(true);
+    }
+    /* Only the platform's "already started" is final; any other failure puts
+       the button back so the cancel can be tried again. */
+    setCancels((prev) => {
+      const next = { ...prev };
+      if (failed.code === "not_cancelable") next[requestId] = { phase: "refused", reason: failed.error };
+      else delete next[requestId];
+      return next;
+    });
+    setError((prev) => prev ?? failed.error);
+  }, []);
 
   /* Reuse restores the whole plane the run was made from — model, its dials,
      then the words. A reuse that dropped the ratio and resolution would
@@ -645,6 +748,8 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
             onFavorite={toggleFavorite}
             onDownload={downloadRun}
             onDelete={deleteRun}
+            cancels={cancels}
+            onCancel={cancelRun}
             onStarter={applyStarter}
             galleryRef={galleryRef}
           />
@@ -653,6 +758,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
             surface={surface}
             model={model}
             generating={busy}
+            submitting={submitting > 0}
             error={error}
             focusNonce={focusNonce}
             history={history}
@@ -700,14 +806,20 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
         {keysOpen && (
           <KeyModal
             configured={keyConfigured}
-            onClose={() => setKeysOpen(false)}
+            notice={keyNotice}
+            onClose={() => {
+              setKeysOpen(false);
+              setKeyNotice(null);
+            }}
             onSaved={() => {
               setKeyConfigured(true);
               setKeysOpen(false);
+              setKeyNotice(null);
               setError(null);
             }}
             onCleared={() => {
               setKeyConfigured(false);
+              setKeyNotice(null);
             }}
           />
         )}

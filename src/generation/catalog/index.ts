@@ -22,7 +22,7 @@ import { ltx25Fast } from "./ltx-2.5-fast";
 import { ltx25Pro } from "./ltx-2.5-pro";
 import { minimaxH3 } from "./minimax-h3";
 import { minimaxHailuo23 } from "./minimax-hailuo-2.3";
-import { parseSettings } from "./parse-settings";
+import { coerceSettings, parseSettings } from "./parse-settings";
 import { pixverse6 } from "./pixverse-6";
 import { qwenImage3 } from "./qwen-image-3";
 import { recraft41 } from "./recraft-4.1";
@@ -84,4 +84,5 @@ export function getModel(id: string): ModelEntry {
 }
 
 export type { GenerationPlane, MediaItem, MediaRole, ModelEntry, PlatformPaths, Surface } from "./types";
-export { parseSettings };
+export { coerceSettings, parseSettings };
+export { planeProblem } from "./validate";

@@ -7,7 +7,7 @@ import type { Surface } from "@/generation/catalog";
 
 import { swatchFor } from "./artwork";
 import { CROSS_VIEWS, SAMPLES, pickSamples, type GalleryView } from "./data";
-import type { ActiveRun } from "./openhiggsfield-app";
+import type { ActiveRun, CancelState } from "./openhiggsfield-app";
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -18,7 +18,7 @@ import {
   TrashIcon,
   WarningIcon,
 } from "./icons";
-import { timeAgo, type RunRecord } from "./history";
+import { CANCELED_TEXT, timeAgo, type RunRecord } from "./history";
 import { ModelIcon } from "./model-icon";
 
 const EMPTY: Record<GalleryView, { title: string; hint: string }> = {
@@ -68,6 +68,7 @@ function slotsOf(runs: ActiveRun[], items: RunRecord[]): Slot[] {
           modelLabel: item.modelLabel,
           ratio: item.ratio,
           startedAt: item.createdAt,
+          requestId: item.requestId,
         },
       });
       return;
@@ -177,7 +178,9 @@ const Tile = memo(function Tile({
           <span className="ohf-fail-ic">
             <WarningIcon />
           </span>
-          <span className="ohf-fail-title">{item.modelLabel} didn’t deliver</span>
+          <span className="ohf-fail-title">
+            {item.error === CANCELED_TEXT ? `${item.modelLabel} run canceled` : `${item.modelLabel} didn’t deliver`}
+          </span>
           <span className="ohf-fail-why">{item.error}</span>
           <button
             type="button"
@@ -341,6 +344,8 @@ export const Gallery = memo(function Gallery({
   onFavorite,
   onDownload,
   onDelete,
+  cancels,
+  onCancel,
   onStarter,
   galleryRef,
 }: {
@@ -356,6 +361,8 @@ export const Gallery = memo(function Gallery({
   onFavorite: (item: RunRecord) => void;
   onDownload: (item: RunRecord) => Promise<void>;
   onDelete: (item: RunRecord) => void;
+  cancels: Record<string, CancelState>;
+  onCancel: (requestId: string) => void;
   onStarter: (prompt: string) => void;
   galleryRef: RefObject<HTMLDivElement | null>;
 }) {
@@ -391,6 +398,8 @@ export const Gallery = memo(function Gallery({
         onFavorite={onFavorite}
         onDownload={onDownload}
         onDelete={onDelete}
+        cancels={cancels}
+        onCancel={onCancel}
       />
     </div>
   );
@@ -409,6 +418,8 @@ function VirtualizedGrid({
   onFavorite,
   onDownload,
   onDelete,
+  cancels,
+  onCancel,
 }: {
   scrollRef: RefObject<HTMLDivElement | null>;
   selecting: boolean;
@@ -422,6 +433,8 @@ function VirtualizedGrid({
   onFavorite: (item: RunRecord) => void;
   onDownload: (item: RunRecord) => Promise<void>;
   onDelete: (item: RunRecord) => void;
+  cancels: Record<string, CancelState>;
+  onCancel: (requestId: string) => void;
 }) {
   const width = useInnerWidth(scrollRef);
   const slots = useMemo(() => slotsOf(runs, items), [runs, items]);
@@ -461,7 +474,12 @@ function VirtualizedGrid({
           >
             {slice.map((slot) =>
               slot.kind === "run" ? (
-                <RunningTile key={slot.key} run={slot.run} />
+                <RunningTile
+                  key={slot.key}
+                  run={slot.run}
+                  cancel={slot.run.requestId ? cancels[slot.run.requestId] : undefined}
+                  onCancel={onCancel}
+                />
               ) : (
                 <Tile
                   key={slot.key}
@@ -545,7 +563,15 @@ function Empty({
   );
 }
 
-function RunningTile({ run }: { run: ActiveRun }) {
+function RunningTile({
+  run,
+  cancel,
+  onCancel,
+}: {
+  run: ActiveRun;
+  cancel?: CancelState;
+  onCancel: (requestId: string) => void;
+}) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -561,10 +587,32 @@ function RunningTile({ run }: { run: ActiveRun }) {
       role="status"
       aria-label={`${run.modelLabel} rendering`}
     >
-      <span className="ohf-skeleton-label">Rendering</span>
+      <span className="ohf-skeleton-label">{run.requestId ? "Rendering" : "Sending"}</span>
       <span className="ohf-skeleton-clock">
         {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
       </span>
+      {/* Only an accepted run has something to cancel. The platform takes a
+          cancel while the run is still queued; once it has started, it says so
+          and the run finishes on its own. */}
+      {run.requestId && (
+        <span className="ohf-skeleton-cancel">
+          {cancel?.phase === "refused" ? (
+            <span className="ohf-skeleton-note" title={cancel.reason}>
+              Already started
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="ohf-btn-quiet ohf-skeleton-cancel-btn"
+              disabled={cancel !== undefined}
+              aria-label={`Cancel ${run.modelLabel} run`}
+              onClick={() => onCancel(run.requestId!)}
+            >
+              {cancel?.phase === "sending" ? "Canceling…" : cancel?.phase === "sent" ? "Cancel sent" : "Cancel"}
+            </button>
+          )}
+        </span>
+      )}
     </div>
   );
 }

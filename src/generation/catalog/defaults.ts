@@ -3,12 +3,17 @@ import type { MediaRole, ModelEntry, PlatformPaths } from "./types";
 const IMAGE_ASPECT = ["auto", "1:1", "4:3", "3:4", "16:9", "9:16"] as const;
 const VIDEO_ASPECT = ["16:9", "9:16", "1:1"] as const;
 
-export function t2v(path: string): PlatformPaths {
-  if (!path.endsWith("/text-to-video")) return { text: path };
-  return { text: path, image: path.replace(/\/text-to-video$/, "/image-to-video") };
+/** Text path plus its image-to-video sibling, which sits under the same prefix:
+    ".../text-to-video" → ".../image-to-video", and
+    ".../text-to-video/fast" → ".../image-to-video/fast". */
+export function t2v(path: string, extra: Omit<PlatformPaths, "text" | "image"> = {}): PlatformPaths {
+  if (!/\/text-to-video(\/|$)/.test(path)) return { text: path, ...extra };
+  return { text: path, image: path.replace(/\/text-to-video(?=\/|$)/, "/image-to-video"), ...extra };
 }
 
-export function imageModel(id: string, label: string, paths: PlatformPaths): ModelEntry {
+type Extra = Partial<Pick<ModelEntry, "roles" | "settings" | "required" | "promptMax" | "audioNeedsVisual">>;
+
+export function imageModel(id: string, label: string, paths: PlatformPaths, extra: Extra = {}): ModelEntry {
   return {
     id,
     surface: "image",
@@ -19,6 +24,7 @@ export function imageModel(id: string, label: string, paths: PlatformPaths): Mod
       resolution: { type: "enum", values: ["1k", "2k", "4k"], default: "1k" },
     },
     paths,
+    ...extra,
   };
 }
 
@@ -27,6 +33,7 @@ export function videoModel(
   label: string,
   roles: Partial<Record<MediaRole, number>>,
   paths: PlatformPaths,
+  extra: Omit<Extra, "roles"> = {},
 ): ModelEntry {
   return {
     id,
@@ -39,5 +46,6 @@ export function videoModel(
       duration: { type: "range", min: 4, max: 10, default: 5 },
     },
     paths,
+    ...extra,
   };
 }

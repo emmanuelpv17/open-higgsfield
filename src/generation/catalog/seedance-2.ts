@@ -14,6 +14,8 @@ export const seedance2: ModelEntry = {
   surface: "video",
   label: "Seedance 2.0",
   roles: seedanceRoles,
+  audioNeedsVisual: true,
+  framesExclusive: true,
   settings: {
     ...seedanceSettings,
     resolution: { type: "enum", values: ["480p", "720p", "1080p", "4k"], default: "720p" },
@@ -25,6 +27,8 @@ export const seedance2Fast: ModelEntry = {
   surface: "video",
   label: "Seedance 2.0 Fast",
   roles: seedanceRoles,
+  audioNeedsVisual: true,
+  framesExclusive: true,
   settings: {
     ...seedanceSettings,
     resolution: { type: "enum", values: ["480p", "720p"], default: "720p" },
@@ -36,6 +40,8 @@ export const seedance2Mini: ModelEntry = {
   surface: "video",
   label: "Seedance 2.0 Mini",
   roles: seedanceRoles,
+  audioNeedsVisual: true,
+  framesExclusive: true,
   settings: {
     ...seedanceSettings,
     resolution: { type: "enum", values: ["480p", "720p"], default: "720p" },
