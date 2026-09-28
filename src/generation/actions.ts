@@ -50,6 +50,16 @@ export async function submitGeneration(plane: GenerationPlane) {
   });
 }
 
+/** Asks the platform to drop a run. The poll then reads the "canceled" status
+    and settles the tile like any other ending. */
+export async function cancelGeneration(requestId: string): Promise<ActionResult<null>> {
+  return settle(async () => {
+    if (typeof requestId !== "string" || !requestId) throw new Error("Invalid request id");
+    await createPlatformClient(await readCredentials()).cancel(requestId);
+    return null;
+  });
+}
+
 /** Every request in flight, answered in one round trip. Next dispatches server
     actions one at a time per client, so a poll per run would queue ahead of the
     next submit — the fan-out belongs on this side of the call, where it is
