@@ -16,10 +16,17 @@ import { createPlatformClient } from "./platform";
 import type { StatusResult } from "./platform";
 import { toPlatform } from "./to-platform";
 
-export async function savePlatformCredentials(data: unknown) {
-  const { apiKey } = parseCredentialInput(data);
-  const jar = await cookies();
-  jar.set(PLATFORM_KEY_COOKIE, encodeCredentials(apiKey), PLATFORM_KEY_COOKIE_OPTIONS);
+/* Server actions answer failures as values: a thrown error reaches a production
+   client as a bare "Minified React error #441" with its message stripped. */
+export type ActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+export async function savePlatformCredentials(data: unknown): Promise<ActionResult<null>> {
+  return settle(async () => {
+    const { apiKey } = parseCredentialInput(data);
+    const jar = await cookies();
+    jar.set(PLATFORM_KEY_COOKIE, encodeCredentials(apiKey), PLATFORM_KEY_COOKIE_OPTIONS);
+    return null;
+  });
 }
 
 export async function clearPlatformCredentials() {
@@ -32,13 +39,15 @@ export async function hasPlatformCredentials() {
 }
 
 export async function submitGeneration(plane: GenerationPlane) {
-  const model = getModel(plane.model);
-  const parsed: GenerationPlane = {
-    ...plane,
-    settings: parseSettings(model, plane.settings),
-  };
-  const { path, body } = toPlatform(parsed);
-  return createPlatformClient(await readCredentials()).submit(path, body);
+  return settle(async () => {
+    const model = getModel(plane.model);
+    const parsed: GenerationPlane = {
+      ...plane,
+      settings: parseSettings(model, plane.settings),
+    };
+    const { path, body } = toPlatform(parsed);
+    return createPlatformClient(await readCredentials()).submit(path, body);
+  });
 }
 
 /** Every request in flight, answered in one round trip. Next dispatches server
@@ -47,7 +56,13 @@ export async function submitGeneration(plane: GenerationPlane) {
     genuinely parallel. */
 export async function getGenerationStatuses(data: unknown): Promise<StatusResult[]> {
   const requestIds = parseRequestIds(data);
-  const client = createPlatformClient(await readCredentials());
+  let client: ReturnType<typeof createPlatformClient>;
+  try {
+    client = createPlatformClient(await readCredentials());
+  } catch (caught) {
+    const error = caught instanceof Error ? caught.message : String(caught);
+    return requestIds.map((requestId) => ({ requestId, error }));
+  }
   return Promise.all(
     requestIds.map(async (requestId): Promise<StatusResult> => {
       try {
@@ -57,6 +72,14 @@ export async function getGenerationStatuses(data: unknown): Promise<StatusResult
       }
     }),
   );
+}
+
+async function settle<T>(run: () => Promise<T>): Promise<ActionResult<T>> {
+  try {
+    return { ok: true, value: await run() };
+  } catch (caught) {
+    return { ok: false, error: caught instanceof Error ? caught.message : String(caught) };
+  }
 }
 
 async function readStoredCredentials() {
