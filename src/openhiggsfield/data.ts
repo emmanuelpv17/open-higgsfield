@@ -103,6 +103,15 @@ export function settingLabel(key: string): string {
   );
 }
 
+/* A pill with no glyph shows its value alone, so a bare "Auto" or "low" needs
+   its setting named to be told apart from its neighbours. */
+export function settingPillValue(key: string, value: unknown): string {
+  const text = settingValueLabel(key, value);
+  if (key === "quality") return `${text.charAt(0).toUpperCase()}${text.slice(1)} quality`;
+  if (key === "moderation") return `Moderation ${text.toLowerCase()}`;
+  return text;
+}
+
 export function settingPillLabel(key: string): string {
   return SETTING_PILL_LABELS[key] ?? settingLabel(key);
 }

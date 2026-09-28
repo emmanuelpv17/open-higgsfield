@@ -1,7 +1,7 @@
 import type { ModelEntry } from "./catalog/types";
 
-/** USD a run should cost, from the model's published per-second rate and the
-    length of its source video. The platform's responses carry no price, so
+/** USD one result should cost: a flat per-result price, or the model's
+    published per-second rate times the length of its source video. The platform's responses carry no price, so
     this is an estimate: null when the model has no known rate or there is no
     source to measure. */
 export function estimateCost(
@@ -9,6 +9,7 @@ export function estimateCost(
   settings: Record<string, unknown>,
   sourceSeconds: number | null,
 ): number | null {
+  if (model.perResultUsd) return model.perResultUsd(settings);
   if (!model.perSecondUsd || sourceSeconds === null) return null;
   const rate = model.perSecondUsd[String(settings.resolution)];
   if (rate === undefined) return null;
@@ -17,7 +18,8 @@ export function estimateCost(
 }
 
 export function formatUsd(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+  /* Image prices sit well under a cent; two places would round them to $0.00. */
+  return `$${amount.toFixed(amount < 0.1 ? 3 : 2)}`;
 }
 
 /** Reads a video's length from its metadata alone; null if it will not load

@@ -30,6 +30,9 @@ export type ModelEntry = {
   /** Published USD rate per second of source video, keyed by resolution. Only
       models billed on their source video carry one. */
   perSecondUsd?: Record<string, number>;
+  /** Published USD price of one result for these settings, or null when the
+      platform lists none for them. */
+  perResultUsd?: (settings: Record<string, unknown>) => number | null;
 };
 
 export type GenerationPlane = {

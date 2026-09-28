@@ -7,6 +7,7 @@ import {
   ratioBox,
   settingLabel,
   settingPillLabel,
+  settingPillValue,
   settingValueLabel,
 } from "./data";
 import { AudioIcon, ClockIcon, FormatIcon, GemIcon } from "./icons";
@@ -96,7 +97,7 @@ export function SettingPill({
           {glyph}
         </span>
       )}
-      <span className="ohf-ctl-value">{settingValueLabel(settingKey, value)}</span>
+      <span className="ohf-ctl-value">{settingPillValue(settingKey, value)}</span>
     </button>
   );
 }

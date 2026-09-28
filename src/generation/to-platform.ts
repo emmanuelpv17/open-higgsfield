@@ -19,6 +19,7 @@ const MAP: Record<string, Mapper> = {
   "seedance-2.5": (plane) => mapSeedance(plane, "bytedance/seedance-2.5"),
   "seedance-2.5-edit": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-edit", false),
   "seedance-2.5-extend": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-extend", true),
+  "marketing-studio-image": mapMarketingStudio,
   "genjutsu-motion": (plane) => mapGenjutsu(plane, "higgsfield/genjutsu/motion-transfer/v1.0"),
   // The platform publishes this path with the "higgsfiled" spelling.
   "genjutsu-swap": (plane) => mapGenjutsu(plane, "higgsfiled/genjutsu/object-swap/v1.0"),
@@ -93,6 +94,22 @@ function mapKlingMotion(plane: GenerationPlane, path: string): Mapped {
       ...(video ? { video_url: video } : {}),
       keep_original_sound: plane.settings.keepOriginalSound ? "yes" : "no",
       character_orientation: plane.settings.characterOrientation,
+    },
+  };
+}
+
+function mapMarketingStudio(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference");
+  return {
+    path: "marketing-studio/image",
+    body: {
+      prompt: plane.prompt.text,
+      aspect_ratio: plane.settings.aspectRatio,
+      resolution: plane.settings.resolution,
+      quality: plane.settings.quality,
+      moderation: plane.settings.moderation,
+      enhance_prompt: false,
+      ...(refs.length ? { image_urls: refs } : {}),
     },
   };
 }

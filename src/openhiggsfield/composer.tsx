@@ -364,34 +364,36 @@ export function Composer({
                 <BatchStepper value={batchValue} counts={counts} onChange={setBatchValue} />
               </div>
 
-              {estimate !== null && (
-                <span
-                  className="ohf-estimate"
-                  title="Estimated from the model's per-second rate and your source video's length"
-                >
-                  ≈ {formatUsd(estimate * batchValue)}
-                </span>
-              )}
-
-              <span className="ohf-generate-slot ohf-tip ohf-tip--end" data-tip={generateTip}>
-                <button
-                  type="button"
-                  className="ohf-generate"
-                  disabled={disabled}
-                  data-busy={generating}
-                  aria-label={generateLabel}
-                  onClick={onGenerate}
-                >
-                  {/* The sheen is the only thing a run in flight changes here:
-                      the label still names what pressing does, because pressing
-                      is still allowed. Progress is the grid's to report. */}
-                  {generating && <span className="ohf-generate-sheen" aria-hidden />}
-                  <span className="ohf-generate-glyph" aria-hidden>
-                    <ArrowUpIcon size={15} />
+              <span className="ohf-generate-group">
+                {estimate !== null && (
+                  <span
+                    className="ohf-estimate"
+                    title="Estimated from the platform's published price for these settings"
+                  >
+                    ≈ {formatUsd(estimate * batchValue)}
                   </span>
-                  <span className="ohf-generate-label">Generate</span>
-                  {shortcut && <kbd className="ohf-kbd">{shortcut}</kbd>}
-                </button>
+                )}
+
+                <span className="ohf-generate-slot ohf-tip ohf-tip--end" data-tip={generateTip}>
+                  <button
+                    type="button"
+                    className="ohf-generate"
+                    disabled={disabled}
+                    data-busy={generating}
+                    aria-label={generateLabel}
+                    onClick={onGenerate}
+                  >
+                    {/* The sheen is the only thing a run in flight changes here:
+                        the label still names what pressing does, because pressing
+                        is still allowed. Progress is the grid's to report. */}
+                    {generating && <span className="ohf-generate-sheen" aria-hidden />}
+                    <span className="ohf-generate-glyph" aria-hidden>
+                      <ArrowUpIcon size={15} />
+                    </span>
+                    <span className="ohf-generate-label">Generate</span>
+                    {shortcut && <kbd className="ohf-kbd">{shortcut}</kbd>}
+                  </button>
+                </span>
               </span>
             </div>
           </div>
@@ -507,6 +509,7 @@ function useEstimate(
     };
   }, [source]);
 
+  if (model.perResultUsd) return estimateCost(model, values, null);
   if (!source || seconds?.url !== source) return null;
   return estimateCost(model, values, seconds.value);
 }
