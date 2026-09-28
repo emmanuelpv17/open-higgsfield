@@ -128,6 +128,36 @@ OPEN_HIGGSFIELD_READ_WRITE_TOKEN=     # Vercel Blob read-write token
 
 ---
 
+## Command line (`scripts/hf.mjs`)
+
+Generate straight from a terminal (or from Claude Code) with the platform API,
+no studio needed. Node 18+, no dependencies.
+
+```bash
+# credentials: env vars, or a gitignored .env.local
+echo 'HF_API_KEY=your-key-id:your-key-secret' > .env.local
+
+# cost before spending
+node scripts/hf.mjs estimate higgsfield-ai/soul/v2/standard --prompt "alpine lake at sunrise"
+
+# image
+node scripts/hf.mjs gen higgsfield-ai/soul/v2/standard --prompt "alpine lake at sunrise" aspect_ratio=16:9
+
+# text to video
+node scripts/hf.mjs gen bytedance/seedance-2.0/text-to-video --prompt "slow dolly over a neon street" \
+  aspect_ratio=9:16 duration=5 resolution=720p
+
+# image to video: a local file is uploaded first and replaced by its public URL
+node scripts/hf.mjs gen kling-video/v3.0-turbo/image-to-video --prompt "camera pushes in" image_url=./photo.jpg duration=5
+```
+
+`key=value` pairs become JSON body fields (values parse as JSON when they can).
+The command polls until a terminal status, prints the result and saves the
+media to `outputs/` (gitignored). `--no-wait` returns the `request_id`
+immediately; `status <id>` and `cancel <id>` pick it up later. Model paths are
+the ones under `src/generation/to-platform.ts` and `src/generation/catalog/`;
+each model's fields are documented at https://docs.higgsfield.ai/docs/models.
+
 ## Layout
 
 ```

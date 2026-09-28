@@ -12,3 +12,6 @@ tsconfig.tsbuildinfo
 
 .env*
 .idea
+
+# generated media from scripts/hf.mjs
+outputs
