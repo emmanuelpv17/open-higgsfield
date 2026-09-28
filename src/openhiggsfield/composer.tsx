@@ -185,10 +185,8 @@ export function Composer({
   /* Popovers are positioned by the composer so the wide ones stay inside its
      column, but they open off the control that summoned them: the anchor
      travels to the trigger's left edge, clamped to the column, and rises from
-     just above the trigger's own top rather than from the whole dock.
-     One thing outranks the trigger: the attachments. A panel laid over the
-     frames already on the plane makes the visitor choose blind, so where the
-     strip is present every panel clears it. */
+     just above the trigger's own top. Clearing the attachment strip instead
+     sent panels far from their pill whenever a long prompt stood between. */
   function toggle(next: string, trigger: HTMLElement) {
     if (overlay === next) {
       setOverlay(null);
@@ -198,10 +196,7 @@ export function Composer({
     if (!wrap) return;
     const wrapBox = wrap.getBoundingClientRect();
     const triggerBox = trigger.getBoundingClientRect();
-    const strip = wrap.querySelector(".ohf-strip");
-    const ceiling = strip
-      ? Math.min(triggerBox.top, strip.getBoundingClientRect().top)
-      : triggerBox.top;
+    const ceiling = triggerBox.top;
     const available = wrap.clientWidth;
     const width = Math.min(popoverWidth(next, model), available);
     setAnchor({
