@@ -193,6 +193,8 @@ async function main() {
       if (!model) fail("Usage: gen <model-path> --prompt \"...\" [key=value ...]");
       const body = await buildBody(flags, fields);
       console.error(`POST /${model} ${JSON.stringify(body)}`);
+      const cost = await api("POST", `estimate/${model}`, body);
+      console.error(`cost: ${cost.credits} credits (~$${cost.usd})`);
       const queued = await api("POST", model, body);
       console.error(`request_id: ${queued.request_id}`);
       if (flags.wait === false) return console.log(JSON.stringify(queued, null, 2));
