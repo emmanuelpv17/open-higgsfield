@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { formatUsd } from "@/generation/cost";
+import { asCost, formatCost } from "@/generation/pricing";
 
 import { settingLabel, settingValueLabel } from "./data";
 import { fileNameFor, saveFile } from "./download";
@@ -145,6 +145,7 @@ export function Viewer({
   }, []);
   /* Older records predate the stored plane; their one-line meta is all the
      output detail that survives, so it stands in for the dial-by-dial list. */
+  const cost = asCost(item.cost);
   const facts: Array<[string, string]> = [
     ...(item.settings
       ? Object.entries(item.settings).map(([key, value]): [string, string] => [
@@ -154,7 +155,7 @@ export function Viewer({
       : item.meta
         ? [["Output", item.meta] as [string, string]]
         : []),
-    ...(item.cost !== undefined ? [["Estimated cost", formatUsd(item.cost)] as [string, string]] : []),
+    ...(cost ? [["Estimated cost", formatCost(cost)] as [string, string]] : []),
   ];
 
   return (

@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type Re
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { Surface } from "@/generation/catalog";
-import { formatUsd } from "@/generation/cost";
+import { asCost, formatCost } from "@/generation/pricing";
 
 import { swatchFor } from "./artwork";
 import { CROSS_VIEWS, SAMPLES, pickSamples, type GalleryView } from "./data";
@@ -135,9 +135,10 @@ const Tile = memo(function Tile({
   const [saving, setSaving] = useState(false);
   const saved = item.favorite === true;
   const named = shortPrompt(item.prompt);
+  const cost = asCost(item.cost);
   const facts = [
     ...(item.meta ? item.meta.split(" · ") : []),
-    ...(item.cost !== undefined ? [`≈ ${formatUsd(item.cost)}`] : []),
+    ...(cost ? [`≈ ${formatCost(cost)}`] : []),
   ];
 
   /* Top-left, where a selection mark is looked for, and the one control on the
@@ -184,8 +185,8 @@ const Tile = memo(function Tile({
           </span>
           <span className="ohf-fail-title">{item.modelLabel} didn’t deliver</span>
           <span className="ohf-fail-why">{item.error}</span>
-          {item.cost !== undefined && (
-            <span className="ohf-fail-why">Estimated cost if billed: {formatUsd(item.cost)}</span>
+          {asCost(item.cost) && (
+            <span className="ohf-fail-why">Estimated cost if billed: {formatCost(asCost(item.cost)!)}</span>
           )}
           <button
             type="button"

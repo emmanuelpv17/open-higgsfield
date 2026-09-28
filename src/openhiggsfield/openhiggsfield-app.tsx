@@ -6,7 +6,8 @@ import { cancelGeneration, hasPlatformCredentials, submitGeneration } from "@/ge
 import { MissingCredentialsError } from "@/generation/credentials";
 import { MODELS, getModel } from "@/generation/catalog";
 import type { GenerationPlane, ModelEntry, Surface } from "@/generation/catalog";
-import { estimateCost, videoSeconds } from "@/generation/cost";
+import { videoSeconds } from "@/generation/cost";
+import { estimateCost, pricedFromSource, type Cost } from "@/generation/pricing";
 import { assemblePlane } from "@/generation/plane";
 import type { GenerationStatus } from "@/generation/platform";
 import { POLL_DEADLINE_MS, stopWatching, watchRequest } from "@/generation/poll";
@@ -58,15 +59,13 @@ type RunDraft = {
   badge?: string;
   settings?: Record<string, unknown>;
   createdAt: number;
-  cost?: number;
+  cost?: Cost | number;
 };
 
-async function costOf(model: ModelEntry, plane: GenerationPlane): Promise<number | undefined> {
-  if (model.perResultUsd) return estimateCost(model, plane.settings, null) ?? undefined;
-  if (!model.perSecondUsd) return undefined;
-  const source = plane.media.video?.[0]?.url;
+async function costOf(model: ModelEntry, plane: GenerationPlane): Promise<Cost | undefined> {
+  const source = pricedFromSource(model.id) ? plane.media.video?.[0]?.url : undefined;
   const seconds = source ? await videoSeconds(source) : null;
-  return estimateCost(model, plane.settings, seconds) ?? undefined;
+  return estimateCost(model.id, plane.settings, seconds) ?? undefined;
 }
 
 function hueOf(seed: string): number {
