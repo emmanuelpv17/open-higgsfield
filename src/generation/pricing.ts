@@ -6,7 +6,9 @@
    Where a page lists two rates with no word on which applies (some Kling
    models, likely without and with audio), the estimate is the range. */
 
-export type Cost = { usd: number; max?: number };
+/** `upTo` marks a ceiling borrowed from the nearest published price, for
+    settings the platform lists none for. */
+export type Cost = { usd: number; max?: number; upTo?: boolean };
 
 type Settings = Record<string, unknown>;
 
@@ -18,9 +20,28 @@ type Pricer = {
 
 const flat = (usd: number | undefined): Cost | null => (usd === undefined ? null : { usd });
 
-/** A per-result price looked up by a settings key. */
-const perResult = (table: Record<string, number>, key: (settings: Settings) => string): Pricer => ({
-  price: (settings) => flat(table[key(settings)]),
+/** A per-result price looked up by a settings key, falling back to a ceiling
+    where one is known for settings with no published price. */
+const perResult = (
+  table: Record<string, number>,
+  key: (settings: Settings) => string,
+  ceiling: (settings: Settings) => number | undefined = () => undefined,
+): Pricer => ({
+  price: (settings) => {
+    const exact = table[key(settings)];
+    if (exact !== undefined) return { usd: exact };
+    const cap = ceiling(settings);
+    return cap === undefined ? null : { usd: cap, upTo: true };
+  },
+});
+
+/** Prices a cheaper variant by its full model's price, as a ceiling. */
+const atMost = (pricer: Pricer): Pricer => ({
+  source: pricer.source,
+  price: (settings, sourceSeconds) => {
+    const cost = pricer.price(settings, sourceSeconds);
+    return cost && { ...cost, upTo: true };
+  },
 });
 const resolutionOf = (settings: Settings) => String(settings.resolution);
 
@@ -68,6 +89,15 @@ const byResolution =
 const seedance2Rate = (width: number, height: number, per1k: number) =>
   ((width * height * 24) / 1024 / 1000) * per1k;
 
+const seedance2 = perSecond(
+  byResolution({
+    "480p": seedance2Rate(854, 480, 0.014),
+    "720p": seedance2Rate(1280, 720, 0.014),
+    "1080p": seedance2Rate(1920, 1080, 0.014),
+    "4k": seedance2Rate(3840, 2160, 0.008),
+  }),
+);
+
 const PRICING: Record<string, Pricer> = {
   /* ---------- video ---------- */
   "genjutsu-motion": perSourceSecond(byResolution({ "480p": 0.318, "720p": 0.681 })),
@@ -84,14 +114,10 @@ const PRICING: Record<string, Pricer> = {
     byResolution({ "480p": 0.1234, "720p": 0.2773 }),
     (seconds, settings) => seconds + Math.ceil(Number(settings.duration) || 0),
   ),
-  "seedance-2": perSecond(
-    byResolution({
-      "480p": seedance2Rate(854, 480, 0.014),
-      "720p": seedance2Rate(1280, 720, 0.014),
-      "1080p": seedance2Rate(1920, 1080, 0.014),
-      "4k": seedance2Rate(3840, 2160, 0.008),
-    }),
-  ),
+  "seedance-2": seedance2,
+  /* Unpriced on the console; the lighter variants cost no more than the full model. */
+  "seedance-2-fast": atMost(seedance2),
+  "seedance-2-mini": atMost(seedance2),
   "kling-3-turbo": perSecond(byResolution({ "720p": 0.112, "1080p": 0.14 })),
   "kling-3-std": perSecond(() => 0.084),
   "kling-3-pro": perSecond(() => [0.112, 0.168]),
@@ -124,12 +150,16 @@ const PRICING: Record<string, Pricer> = {
   "marketing-studio-image": perResult(
     { "1k/low": 0.0162, "2k/low": 0.0222, "4k/high": 0.7219 },
     (settings) => `${settings.resolution}/${settings.quality}`,
+    /* 4K at high quality is the dearest combination, so it caps the rest. */
+    () => 0.7219,
   ),
   /* Published as 1k at low quality and 2k at medium; the request sets no quality. */
   "grok-imagine-2": perResult({ "1k": 0.04, "2k": 0.08 }, resolutionOf),
   "ideogram-4": { price: () => flat(0.03) },
   /* 2k is sold as Recraft 4.1 Pro, a separate model. */
-  "recraft-4.1": perResult({ "1k": 0.035 }, resolutionOf),
+  "recraft-4.1": perResult({ "1k": 0.035 }, resolutionOf, (settings) =>
+    settings.resolution === "2k" ? 0.21 : undefined,
+  ),
   "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf),
   "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf),
 };
@@ -154,7 +184,11 @@ export function asCost(stored: Cost | number | undefined): Cost | undefined {
 }
 
 export function scaleCost(cost: Cost, by: number): Cost {
-  return cost.max === undefined ? { usd: cost.usd * by } : { usd: cost.usd * by, max: cost.max * by };
+  return {
+    ...cost,
+    usd: cost.usd * by,
+    ...(cost.max === undefined ? {} : { max: cost.max * by }),
+  };
 }
 
 export function formatUsd(amount: number): string {
@@ -162,8 +196,10 @@ export function formatUsd(amount: number): string {
   return `$${amount.toFixed(amount < 0.1 ? 3 : 2)}`;
 }
 
+/** "≈ $0.42", "≈ $0.56–$0.84", or "≤ $0.72" for a ceiling. */
 export function formatCost(cost: Cost): string {
+  if (cost.upTo) return `≤ ${formatUsd(cost.max ?? cost.usd)}`;
   return cost.max === undefined || cost.max === cost.usd
-    ? formatUsd(cost.usd)
-    : `${formatUsd(cost.usd)}–${formatUsd(cost.max)}`;
+    ? `≈ ${formatUsd(cost.usd)}`
+    : `≈ ${formatUsd(cost.usd)}–${formatUsd(cost.max)}`;
 }
