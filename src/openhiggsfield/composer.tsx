@@ -369,12 +369,12 @@ export function Composer({
                 {estimate.kind !== "unknown" && (
                   <span
                     className="ohf-estimate"
-                    data-known={estimate.kind === "price" || undefined}
+                    data-known
                     title={ESTIMATE_TIPS[estimate.kind]}
                   >
                     {estimate.kind === "price"
                       ? formatCost(scaleCost(estimate.cost, batchValue))
-                      : "Add a video to price"}
+                      : `${formatCost(estimate.cost)}/s`}
                   </span>
                 )}
 
@@ -492,12 +492,15 @@ function BatchStepper({
   );
 }
 
-type Estimate = { kind: "price"; cost: Cost } | { kind: "needs-video" } | { kind: "unknown" };
+type Estimate =
+  | { kind: "price"; cost: Cost }
+  | { kind: "per-second"; cost: Cost }
+  | { kind: "unknown" };
 
-const ESTIMATE_TIPS: Record<"price" | "needs-video", string> = {
+const ESTIMATE_TIPS: Record<"price" | "per-second", string> = {
   price:
-    "Estimated from the platform's published prices: a range where it lists two rates, a ceiling (≤) where it lists none for these settings",
-  "needs-video": "This model is billed per second of the source video",
+    "Estimated from the platform's published prices: a range where it lists two rates, the nearest published price where it lists none for these settings",
+  "per-second": "Billed per second of the source video; attach it to see the total",
 };
 
 /* Cost of one result before the press is made. Models billed on their source
@@ -522,7 +525,10 @@ function useEstimate(
     };
   }, [source]);
 
-  if (fromSource && (!source || seconds?.url !== source)) return { kind: "needs-video" };
+  if (fromSource && (!source || seconds?.url !== source)) {
+    const rate = estimateCost(model.id, values, 1);
+    return rate === null ? { kind: "unknown" } : { kind: "per-second", cost: rate };
+  }
   const cost = estimateCost(model.id, values, seconds?.value ?? null);
   return cost === null ? { kind: "unknown" } : { kind: "price", cost };
 }

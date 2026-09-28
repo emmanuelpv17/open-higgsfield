@@ -4,11 +4,17 @@
    no published price has no entry and shows none.
 
    Where a page lists two rates with no word on which applies (some Kling
-   models, likely without and with audio), the estimate is the range. */
+   models, likely without and with audio), the estimate is the range.
 
-/** `upTo` marks a ceiling borrowed from the nearest published price, for
-    settings the platform lists none for. */
-export type Cost = { usd: number; max?: number; upTo?: boolean };
+   Every model shows a figure. Where the console publishes none, the figure
+   is borrowed from the nearest published price and marked `approx`: a
+   dearer combination of the same model, the full model for a lighter
+   variant, or a comparable model where the console lists nothing at all.
+   4K images the console never prices are taken as twice the 2K price. */
+
+/** `approx` marks a figure borrowed from the nearest published price, for a
+    model or settings the platform lists none for. */
+export type Cost = { usd: number; max?: number; approx?: boolean };
 
 type Settings = Record<string, unknown>;
 
@@ -31,18 +37,22 @@ const perResult = (
     const exact = table[key(settings)];
     if (exact !== undefined) return { usd: exact };
     const cap = ceiling(settings);
-    return cap === undefined ? null : { usd: cap, upTo: true };
+    return cap === undefined ? null : { usd: cap, approx: true };
   },
 });
 
-/** Prices a cheaper variant by its full model's price, as a ceiling. */
-const atMost = (pricer: Pricer): Pricer => ({
+/** Prices a model the console lists nothing for by a comparable one. */
+const borrowed = (pricer: Pricer): Pricer => ({
   source: pricer.source,
   price: (settings, sourceSeconds) => {
     const cost = pricer.price(settings, sourceSeconds);
-    return cost && { ...cost, upTo: true };
+    return cost && { ...cost, approx: true };
   },
 });
+
+/** 4K where only 1K and 2K are published: twice the 2K price. */
+const with4k = (table: Record<string, number>): ((settings: Settings) => number | undefined) =>
+  (settings) => (settings.resolution === "4k" && table["2k"] !== undefined ? table["2k"] * 2 : undefined);
 const resolutionOf = (settings: Settings) => String(settings.resolution);
 
 /** Billed per started second of the requested duration. */
@@ -116,8 +126,8 @@ const PRICING: Record<string, Pricer> = {
   ),
   "seedance-2": seedance2,
   /* Unpriced on the console; the lighter variants cost no more than the full model. */
-  "seedance-2-fast": atMost(seedance2),
-  "seedance-2-mini": atMost(seedance2),
+  "seedance-2-fast": borrowed(seedance2),
+  "seedance-2-mini": borrowed(seedance2),
   "kling-3-turbo": perSecond(byResolution({ "720p": 0.112, "1080p": 0.14 })),
   "kling-3-std": perSecond(() => 0.084),
   "kling-3-pro": perSecond(() => [0.112, 0.168]),
@@ -143,9 +153,15 @@ const PRICING: Record<string, Pricer> = {
   "ltx-2.5-fast": perSecond(byResolution({ "720p": 0.09, "1080p": 0.13 })),
   "ltx-2.5-pro": perSecond(byResolution({ "720p": 0.12, "1080p": 0.17 })),
   "grok-imagine-video-1.5": perSecond(byResolution({ "720p": 0.14, "1080p": 0.25 })),
+  /* Not on the console: priced like the nearest comparable models. */
+  "flux-3": borrowed(perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 }))), // as Wan 2.7
+  "pixverse-6": borrowed(perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 }))), // as Wan 2.6
+  dop: borrowed(perSecond(() => 0.084)), // as Kling 3.0 Std
 
   /* ---------- image, per result ---------- */
   "soul-2": perResult({ "720p": 0.0032, "1080p": 0.0057 }, resolutionOf),
+  /* Not on the console; the console's Soul Standard prices stand in. */
+  "soul-cinema": borrowed(perResult({ "720p": 0.0938, "1080p": 0.1875 }, resolutionOf)),
   /* Only three combinations are published; the preset mode costs 10% more but is not wired. */
   "marketing-studio-image": perResult(
     { "1k/low": 0.0162, "2k/low": 0.0222, "4k/high": 0.7219 },
@@ -154,14 +170,16 @@ const PRICING: Record<string, Pricer> = {
     () => 0.7219,
   ),
   /* Published as 1k at low quality and 2k at medium; the request sets no quality. */
-  "grok-imagine-2": perResult({ "1k": 0.04, "2k": 0.08 }, resolutionOf),
+  "grok-imagine-2": perResult({ "1k": 0.04, "2k": 0.08 }, resolutionOf, with4k({ "2k": 0.08 })),
+  /* Not on the console: priced like Qwen Image 3. */
+  "flux-2": borrowed(perResult({ "1k": 0.04, "2k": 0.075, "4k": 0.15 }, resolutionOf)),
   "ideogram-4": { price: () => flat(0.03) },
-  /* 2k is sold as Recraft 4.1 Pro, a separate model. */
+  /* 2k is sold as Recraft 4.1 Pro. */
   "recraft-4.1": perResult({ "1k": 0.035 }, resolutionOf, (settings) =>
-    settings.resolution === "2k" ? 0.21 : undefined,
+    settings.resolution === "2k" ? 0.21 : settings.resolution === "4k" ? 0.42 : undefined,
   ),
-  "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf),
-  "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf),
+  "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf, with4k({ "2k": 0.075 })),
+  "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf, with4k({ "2k": 0.015 })),
 };
 
 /** Whether this model is priced from the length of its source video. */
@@ -196,9 +214,8 @@ export function formatUsd(amount: number): string {
   return `$${amount.toFixed(amount < 0.1 ? 3 : 2)}`;
 }
 
-/** "≈ $0.42", "≈ $0.56–$0.84", or "≤ $0.72" for a ceiling. */
+/** "≈ $0.42" or "≈ $0.56–$0.84". A borrowed figure reads the same. */
 export function formatCost(cost: Cost): string {
-  if (cost.upTo) return `≤ ${formatUsd(cost.max ?? cost.usd)}`;
   return cost.max === undefined || cost.max === cost.usd
     ? `≈ ${formatUsd(cost.usd)}`
     : `≈ ${formatUsd(cost.usd)}–${formatUsd(cost.max)}`;
