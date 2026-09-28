@@ -27,6 +27,9 @@ export type ModelEntry = {
   settings: Record<string, SettingField>;
   /** Submit paths when the shared mapper is enough. Soul, Kling 3, and Seedance keep custom maps. */
   paths?: PlatformPaths;
+  /** Published USD rate per second of source video, keyed by resolution. Only
+      models billed on their source video carry one. */
+  perSecondUsd?: Record<string, number>;
 };
 
 export type GenerationPlane = {
