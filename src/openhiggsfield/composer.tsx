@@ -5,7 +5,8 @@ import type { CSSProperties, ReactNode } from "react";
 
 import { parseSettings } from "@/generation/catalog";
 import type { MediaItem, ModelEntry, Surface } from "@/generation/catalog";
-import { estimateCost, formatUsd, videoSeconds } from "@/generation/cost";
+import { videoSeconds } from "@/generation/cost";
+import { estimateCost, formatCost, pricedFromSource, scaleCost, type Cost } from "@/generation/pricing";
 import { MAX_BATCH, useActive } from "@/generation/stores/active";
 import { useImagePrompt, useVideoPrompt } from "@/generation/stores/prompt";
 import { useSettings } from "@/generation/stores/settings";
@@ -371,7 +372,7 @@ export function Composer({
                   title={ESTIMATE_TIPS[estimate.kind]}
                 >
                   {estimate.kind === "price"
-                    ? `≈ ${formatUsd(estimate.usd * batchValue)}`
+                    ? `≈ ${formatCost(scaleCost(estimate.cost, batchValue))}`
                     : estimate.kind === "needs-video"
                       ? "Add a video to price"
                       : "Price not published"}
@@ -491,10 +492,10 @@ function BatchStepper({
   );
 }
 
-type Estimate = { kind: "price"; usd: number } | { kind: "needs-video" } | { kind: "unknown" };
+type Estimate = { kind: "price"; cost: Cost } | { kind: "needs-video" } | { kind: "unknown" };
 
 const ESTIMATE_TIPS: Record<Estimate["kind"], string> = {
-  price: "Estimated from the platform's published price for these settings",
+  price: "Estimated from the platform's published price for these settings; a range where the page lists two rates",
   "needs-video": "This model is billed per second of the source video",
   unknown: "The platform publishes no price for this model or these settings",
 };
@@ -506,7 +507,8 @@ function useEstimate(
   values: Record<string, unknown>,
   items: MediaItem[],
 ): Estimate {
-  const source = model.perSecondUsd ? items.find((item) => item.role === "video")?.url : undefined;
+  const fromSource = pricedFromSource(model.id);
+  const source = fromSource ? items.find((item) => item.role === "video")?.url : undefined;
   const [seconds, setSeconds] = useState<{ url: string; value: number | null } | null>(null);
 
   useEffect(() => {
@@ -520,7 +522,7 @@ function useEstimate(
     };
   }, [source]);
 
-  if (model.perSecondUsd && (!source || seconds?.url !== source)) return { kind: "needs-video" };
-  const usd = estimateCost(model, values, seconds?.value ?? null);
-  return usd === null ? { kind: "unknown" } : { kind: "price", usd };
+  if (fromSource && (!source || seconds?.url !== source)) return { kind: "needs-video" };
+  const cost = estimateCost(model.id, values, seconds?.value ?? null);
+  return cost === null ? { kind: "unknown" } : { kind: "price", cost };
 }
