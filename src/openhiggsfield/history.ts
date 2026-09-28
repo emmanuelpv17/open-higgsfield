@@ -30,6 +30,9 @@ export interface RunRecord {
   settings?: Record<string, unknown>;
 }
 
+/** The error a canceled run is recorded with; the failed tile names it as a cancel. */
+export const CANCELED_TEXT = "the run was canceled";
+
 export const HISTORY_KEY = "history.v1";
 export const LEGACY_HISTORY_KEY = "openhiggsfield.history.v1";
 const MAX_RECORDS = 60;

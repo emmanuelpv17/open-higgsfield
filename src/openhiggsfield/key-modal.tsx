@@ -6,13 +6,18 @@ import { clearPlatformCredentials, savePlatformCredentials } from "@/generation/
 
 import { CloseIcon } from "./icons";
 
+export const API_KEYS_URL = "https://open.higgsfield.ai/api-keys";
+
 export function KeyModal({
   configured,
+  notice,
   onClose,
   onSaved,
   onCleared,
 }: {
   configured: boolean;
+  /** Why the dialog opened on its own — a key the platform just rejected. */
+  notice?: string | null;
   onClose: () => void;
   onSaved: () => void;
   onCleared: () => void;
@@ -33,10 +38,15 @@ export function KeyModal({
     setBusy(true);
     setError(null);
     try {
-      await savePlatformCredentials({ api_key: apiKey });
+      const answer = await savePlatformCredentials({ apiKey });
+      if (!answer.ok) {
+        setError(answer.error);
+        return;
+      }
+      setApiKey("");
       onSaved();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save the key");
+    } catch {
+      setError("Could not save the key. Try again.");
     } finally {
       setBusy(false);
     }
@@ -50,7 +60,7 @@ export function KeyModal({
       setApiKey("");
       onCleared();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not remove the key");
+      setError(caught instanceof Error ? caught.message : "Could not remove the API key");
     } finally {
       setBusy(false);
     }
@@ -69,13 +79,21 @@ export function KeyModal({
         <div className="ohf-keys-head">
           <div>
             <div id="ohf-keys-title" className="ohf-keys-title">
-              API key
+              {configured ? "Manage API key" : "Connect API key"}
             </div>
             <p className="ohf-keys-copy">
-              {configured
-                ? "A key is saved in this browser. Enter a new id:secret pair to replace it."
-                : "Paste your platform key as id:secret. It stays in an httpOnly cookie and is sent as Authorization: Key id:secret."}
+              Paste the API key copied from{" "}
+              <a href={API_KEYS_URL} target="_blank" rel="noreferrer">
+                open.higgsfield.ai
+              </a>
+              . Paste it as-is.
             </p>
+            {configured && (
+              <p className="ohf-keys-copy">
+                API key saved in an HTTP-only cookie this page&apos;s scripts can&apos;t read. Saving
+                doesn&apos;t check it — the first run does. Paste a new one to replace it.
+              </p>
+            )}
           </div>
           <button type="button" className="ohf-icon-btn" aria-label="Close" onClick={onClose}>
             <CloseIcon size={13} />
@@ -96,6 +114,12 @@ export function KeyModal({
             />
           </label>
 
+          {notice && !error && (
+            <div className="ohf-alert" role="status">
+              <span className="ohf-alert-text">{notice}</span>
+            </div>
+          )}
+
           {error && (
             <div className="ohf-alert" role="alert">
               <span className="ohf-alert-text">{error}</span>
@@ -105,11 +129,11 @@ export function KeyModal({
           <div className="ohf-keys-actions">
             {configured && (
               <button type="button" className="ohf-btn-quiet" disabled={busy} onClick={() => void onClear()}>
-                Remove key
+                Remove API key
               </button>
             )}
             <button type="submit" className="ohf-keys-save" disabled={busy || !apiKey.trim()}>
-              {busy ? "Saving…" : configured ? "Replace key" : "Save key"}
+              {busy ? "Saving…" : configured ? "Replace API key" : "Connect API key"}
             </button>
           </div>
         </form>

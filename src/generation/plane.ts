@@ -1,4 +1,4 @@
-import { getModel, parseSettings } from "./catalog";
+import { coerceSettings, getModel } from "./catalog";
 import type { GenerationPlane } from "./catalog/types";
 import { useActive } from "./stores/active";
 import { useImageMedia, useVideoMedia } from "./stores/media";
@@ -23,6 +23,6 @@ export function assemblePlane(): GenerationPlane {
     model: model.id,
     prompt: { text },
     media,
-    settings: parseSettings(model, useSettings.getState().byModel[model.id] ?? {}),
+    settings: coerceSettings(model, useSettings.getState().byModel[model.id] ?? {}),
   };
 }

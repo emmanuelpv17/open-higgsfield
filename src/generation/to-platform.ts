@@ -99,12 +99,14 @@ function mapByPaths(plane: GenerationPlane, spec: PlatformPaths): Mapped {
   const end = urls(plane, "end")[0];
   const refs = urls(plane, "reference");
   const videos = urls(plane, "video");
-  const body: Record<string, unknown> = {
+  const aspect = plane.settings.aspectRatio ? { aspect_ratio: plane.settings.aspectRatio } : {};
+  const shared: Record<string, unknown> = {
     prompt: plane.prompt.text,
-    ...(plane.settings.aspectRatio ? { aspect_ratio: plane.settings.aspectRatio } : {}),
     ...(plane.settings.resolution ? { resolution: plane.settings.resolution } : {}),
     ...(typeof plane.settings.duration === "number" ? { duration: plane.settings.duration } : {}),
+    ...spec.fixed,
   };
+  const body = { ...shared, ...aspect };
   if (spec.firstLast && (start || end)) {
     return {
       path: spec.firstLast,
@@ -118,7 +120,11 @@ function mapByPaths(plane: GenerationPlane, spec: PlatformPaths): Mapped {
   if (spec.image && start) {
     return {
       path: spec.image,
-      body: { ...body, image_url: start, ...(end ? { last_image_url: end } : {}) },
+      body: {
+        ...(spec.aspectOnImage ? body : shared),
+        image_url: start,
+        ...(end ? { last_image_url: end } : {}),
+      },
     };
   }
   if (spec.reference && (refs.length || videos.length)) {
@@ -137,7 +143,7 @@ function mapByPaths(plane: GenerationPlane, spec: PlatformPaths): Mapped {
       body: refs.length ? { ...body, image_urls: refs } : body,
     };
   }
-  if (spec.image) return { path: spec.image, body };
+  if (spec.image) return { path: spec.image, body: spec.aspectOnImage ? body : shared };
   if (spec.reference) return { path: spec.reference, body };
   if (spec.firstLast) return { path: spec.firstLast, body };
   throw new Error("Model has no platform path");
@@ -149,7 +155,6 @@ function seedanceBody(plane: GenerationPlane, withDuration: boolean) {
     resolution: plane.settings.resolution,
     generate_audio: plane.settings.generateAudio,
     ...(withDuration ? { duration: plane.settings.duration } : {}),
-    ...(plane.settings.outputFormat ? { output_format: plane.settings.outputFormat } : {}),
   };
 }
 
@@ -180,7 +185,12 @@ function mapSeedance(plane: GenerationPlane, prefix: string): Mapped {
   }
   return {
     path: `${prefix}/text-to-video`,
-    body: { ...shared, aspect_ratio: plane.settings.aspectRatio },
+    body: {
+      ...shared,
+      aspect_ratio: plane.settings.aspectRatio,
+      /* Only text-to-video documents output_format. */
+      ...(plane.settings.outputFormat ? { output_format: plane.settings.outputFormat } : {}),
+    },
   };
 }
 

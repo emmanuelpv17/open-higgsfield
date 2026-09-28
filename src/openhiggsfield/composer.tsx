@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import { parseSettings } from "@/generation/catalog";
+import { coerceSettings } from "@/generation/catalog";
 import type { ModelEntry, Surface } from "@/generation/catalog";
 import { MAX_BATCH, useActive } from "@/generation/stores/active";
 import { useImagePrompt, useVideoPrompt } from "@/generation/stores/prompt";
@@ -49,6 +49,7 @@ export function Composer({
   surface,
   model,
   generating,
+  submitting,
   error,
   focusNonce,
   history,
@@ -61,6 +62,9 @@ export function Composer({
   surface: Surface;
   model: ModelEntry;
   generating: boolean;
+  /* A press is still waiting on its request ids. Generate holds until then, so
+     a double click or a repeated ⌘↵ cannot submit the same run twice. */
+  submitting: boolean;
   error: string | null;
   focusNonce: number;
   /* Finished runs are attachable inputs, so the asset picker reads the same
@@ -83,7 +87,7 @@ export function Composer({
   const videoPrompt = useVideoPrompt();
   const prompt = surface === "image" ? imagePrompt : videoPrompt;
   const settings = useSettings();
-  const values = parseSettings(model, settings.byModel[model.id] ?? {});
+  const values = coerceSettings(model, settings.byModel[model.id] ?? {});
   const tray = useMediaTray(model, onError);
 
   const [overlay, setOverlay] = useState<string | null>(null);
@@ -92,9 +96,10 @@ export function Composer({
   const dockRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  /* A run in flight is not a lock: it holds its own tile in the grid, so the
-     only thing that can stop a press is having nothing to say. */
-  const disabled = prompt.text.trim().length === 0;
+  /* A run in flight is not a lock: it holds its own tile in the grid. Only an
+     empty prompt, or a press still being sent, stops the next one. */
+  const empty = prompt.text.trim().length === 0;
+  const disabled = empty || submitting;
 
   /* One batch control, two mechanisms. A model that declares its own
      results-per-request gets that setting written; the rest are submitted once
@@ -211,7 +216,11 @@ export function Composer({
   const attachLabel = tray.allFull ? "Change the inputs" : "Add an input";
   const settingKey = overlay?.startsWith(SETTING) ? overlay.slice(SETTING.length) : null;
   const generateLabel = batchValue > 1 ? `Generate ${batchValue} results` : "Generate";
-  const generateTip = disabled ? "Write a prompt first" : `${generateLabel} · ${shortcut ?? "⌘↵"}`;
+  const generateTip = empty
+    ? "Write a prompt first"
+    : submitting
+      ? "Sending the last run…"
+      : `${generateLabel} · ${shortcut ?? "⌘↵"}`;
 
   return (
     <div className="ohf-dock" ref={dockRef} data-selecting={selecting}>

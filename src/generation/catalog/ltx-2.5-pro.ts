@@ -4,5 +4,13 @@ export const ltx25Pro = videoModel(
   "ltx-2.5-pro",
   "LTX 2.5 Pro",
   { start: 1 },
-  t2v("lightricks/ltx-2.5/text-to-video/pro"),
+  t2v("lightricks/ltx-2.5/text-to-video/pro", { aspectOnImage: true }),
+  {
+    promptMax: 5000,
+    settings: {
+      aspectRatio: { type: "enum", values: ["16:9", "9:16"], default: "16:9" },
+      resolution: { type: "enum", values: ["720p", "1080p"], default: "720p" },
+      duration: { type: "range", min: 6, max: 10, step: 2, default: 6 },
+    },
+  },
 );
