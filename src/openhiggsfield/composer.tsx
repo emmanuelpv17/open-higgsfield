@@ -365,14 +365,17 @@ export function Composer({
               </div>
 
               <span className="ohf-generate-group">
-                {estimate !== null && (
-                  <span
-                    className="ohf-estimate"
-                    title="Estimated from the platform's published price for these settings"
-                  >
-                    ≈ {formatUsd(estimate * batchValue)}
-                  </span>
-                )}
+                <span
+                  className="ohf-estimate"
+                  data-known={estimate.kind === "price" || undefined}
+                  title={ESTIMATE_TIPS[estimate.kind]}
+                >
+                  {estimate.kind === "price"
+                    ? `≈ ${formatUsd(estimate.usd * batchValue)}`
+                    : estimate.kind === "needs-video"
+                      ? "Add a video to price"
+                      : "Price not published"}
+                </span>
 
                 <span className="ohf-generate-slot ohf-tip ohf-tip--end" data-tip={generateTip}>
                   <button
@@ -488,13 +491,21 @@ function BatchStepper({
   );
 }
 
-/* Cost of one press before it is made, for models billed on their source
-   video. The length is read from the attached clip's metadata. */
+type Estimate = { kind: "price"; usd: number } | { kind: "needs-video" } | { kind: "unknown" };
+
+const ESTIMATE_TIPS: Record<Estimate["kind"], string> = {
+  price: "Estimated from the platform's published price for these settings",
+  "needs-video": "This model is billed per second of the source video",
+  unknown: "The platform publishes no price for this model or these settings",
+};
+
+/* Cost of one result before the press is made. Models billed on their source
+   video are priced from the attached clip's metadata. */
 function useEstimate(
   model: ModelEntry,
   values: Record<string, unknown>,
   items: MediaItem[],
-): number | null {
+): Estimate {
   const source = model.perSecondUsd ? items.find((item) => item.role === "video")?.url : undefined;
   const [seconds, setSeconds] = useState<{ url: string; value: number | null } | null>(null);
 
@@ -509,7 +520,7 @@ function useEstimate(
     };
   }, [source]);
 
-  if (model.perResultUsd) return estimateCost(model, values, null);
-  if (!source || seconds?.url !== source) return null;
-  return estimateCost(model, values, seconds.value);
+  if (model.perSecondUsd && (!source || seconds?.url !== source)) return { kind: "needs-video" };
+  const usd = estimateCost(model, values, seconds?.value ?? null);
+  return usd === null ? { kind: "unknown" } : { kind: "price", usd };
 }

@@ -1069,8 +1069,11 @@
 .ohf-estimate {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--tx2);
+  color: var(--tx4);
   white-space: nowrap;
+}
+.ohf-estimate[data-known] {
+  color: var(--tx2);
 }
 .ohf-skeleton-cancel {
   position: relative;
