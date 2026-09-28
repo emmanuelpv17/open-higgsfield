@@ -573,9 +573,11 @@ function RunningTile({
     <div
       className="ohf-skeleton"
       role="status"
-      aria-label={`${run.modelLabel} rendering`}
+      aria-label={`${run.modelLabel} ${requestId ? "rendering" : "sending"}`}
     >
-      <span className="ohf-skeleton-label">Rendering</span>
+      {/* Until the platform answers with a request id the run is still being
+          handed over, and there is nothing yet to cancel. */}
+      <span className="ohf-skeleton-label">{requestId ? "Rendering" : "Sending"}</span>
       <span className="ohf-skeleton-clock">
         {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
       </span>
