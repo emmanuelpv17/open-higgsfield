@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { formatUsd } from "@/generation/cost";
+
 import { settingLabel, settingValueLabel } from "./data";
 import { fileNameFor, saveFile } from "./download";
 import { timeAgo, type RunRecord } from "./history";
@@ -143,14 +145,17 @@ export function Viewer({
   }, []);
   /* Older records predate the stored plane; their one-line meta is all the
      output detail that survives, so it stands in for the dial-by-dial list. */
-  const facts: Array<[string, string]> = item.settings
-    ? Object.entries(item.settings).map(([key, value]) => [
-        settingLabel(key),
-        settingValueLabel(key, value),
-      ])
-    : item.meta
-      ? [["Output", item.meta]]
-      : [];
+  const facts: Array<[string, string]> = [
+    ...(item.settings
+      ? Object.entries(item.settings).map(([key, value]): [string, string] => [
+          settingLabel(key),
+          settingValueLabel(key, value),
+        ])
+      : item.meta
+        ? [["Output", item.meta] as [string, string]]
+        : []),
+    ...(item.cost !== undefined ? [["Estimated cost", formatUsd(item.cost)] as [string, string]] : []),
+  ];
 
   return (
     <dialog

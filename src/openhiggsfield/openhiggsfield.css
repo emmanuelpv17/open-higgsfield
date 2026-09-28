@@ -1059,6 +1059,18 @@
   font-variant-numeric: tabular-nums;
   color: var(--tx4);
 }
+.ohf-estimate {
+  align-self: center;
+  margin-left: auto;
+  margin-right: 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--tx2);
+  white-space: nowrap;
+}
+.ohf-estimate + .ohf-generate-slot {
+  margin-left: 0;
+}
 .ohf-skeleton-cancel {
   position: relative;
   z-index: 1;
@@ -3677,6 +3689,11 @@ a.ohf-btn-solid {
   .ohf-generate-slot {
     width: 100%;
     margin-left: 0;
+  }
+  .ohf-estimate {
+    width: 100%;
+    margin: 0;
+    text-align: right;
   }
   .ohf-generate {
     width: 100%;

@@ -6,12 +6,15 @@ const genjutsuSettings = {
   resolution: { type: "enum", values: ["480p", "720p"], default: "480p" },
 } as const satisfies ModelEntry["settings"];
 
+const genjutsuRates = { "480p": 0.318, "720p": 0.681 };
+
 export const genjutsuMotion: ModelEntry = {
   id: "genjutsu-motion",
   surface: "video",
   label: "Genjutsu Motion Transfer",
   roles: { video: 1, reference: 8 },
   settings: genjutsuSettings,
+  perSecondUsd: genjutsuRates,
 };
 
 export const genjutsuSwap: ModelEntry = {
@@ -20,4 +23,5 @@ export const genjutsuSwap: ModelEntry = {
   label: "Genjutsu Object Swap",
   roles: { video: 1, reference: 8 },
   settings: genjutsuSettings,
+  perSecondUsd: genjutsuRates,
 };

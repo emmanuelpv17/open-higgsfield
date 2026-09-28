@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { parseSettings } from "@/generation/catalog";
-import type { ModelEntry, Surface } from "@/generation/catalog";
+import type { MediaItem, ModelEntry, Surface } from "@/generation/catalog";
+import { estimateCost, formatUsd, videoSeconds } from "@/generation/cost";
 import { MAX_BATCH, useActive } from "@/generation/stores/active";
 import { useImagePrompt, useVideoPrompt } from "@/generation/stores/prompt";
 import { useSettings } from "@/generation/stores/settings";
@@ -85,6 +86,7 @@ export function Composer({
   const settings = useSettings();
   const values = parseSettings(model, settings.byModel[model.id] ?? {});
   const tray = useMediaTray(model, onError);
+  const estimate = useEstimate(model, values, tray.items);
 
   const [overlay, setOverlay] = useState<string | null>(null);
   const [anchor, setAnchor] = useState({ x: 0, y: 0 });
@@ -362,6 +364,15 @@ export function Composer({
                 <BatchStepper value={batchValue} counts={counts} onChange={setBatchValue} />
               </div>
 
+              {estimate !== null && (
+                <span
+                  className="ohf-estimate"
+                  title="Estimated from the model's per-second rate and your source video's length"
+                >
+                  ≈ {formatUsd(estimate * batchValue)}
+                </span>
+              )}
+
               <span className="ohf-generate-slot ohf-tip ohf-tip--end" data-tip={generateTip}>
                 <button
                   type="button"
@@ -473,4 +484,29 @@ function BatchStepper({
       </button>
     </div>
   );
+}
+
+/* Cost of one press before it is made, for models billed on their source
+   video. The length is read from the attached clip's metadata. */
+function useEstimate(
+  model: ModelEntry,
+  values: Record<string, unknown>,
+  items: MediaItem[],
+): number | null {
+  const source = model.perSecondUsd ? items.find((item) => item.role === "video")?.url : undefined;
+  const [seconds, setSeconds] = useState<{ url: string; value: number | null } | null>(null);
+
+  useEffect(() => {
+    if (!source) return;
+    let live = true;
+    void videoSeconds(source).then((value) => {
+      if (live) setSeconds({ url: source, value });
+    });
+    return () => {
+      live = false;
+    };
+  }, [source]);
+
+  if (!source || seconds?.url !== source) return null;
+  return estimateCost(model, values, seconds.value);
 }

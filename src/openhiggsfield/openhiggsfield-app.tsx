@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cancelGeneration, hasPlatformCredentials, submitGeneration } from "@/generation/actions";
 import { MissingCredentialsError } from "@/generation/credentials";
 import { MODELS, getModel } from "@/generation/catalog";
-import type { Surface } from "@/generation/catalog";
+import type { GenerationPlane, ModelEntry, Surface } from "@/generation/catalog";
+import { estimateCost, videoSeconds } from "@/generation/cost";
 import { assemblePlane } from "@/generation/plane";
 import type { GenerationStatus } from "@/generation/platform";
 import { POLL_DEADLINE_MS, stopWatching, watchRequest } from "@/generation/poll";
@@ -57,7 +58,15 @@ type RunDraft = {
   badge?: string;
   settings?: Record<string, unknown>;
   createdAt: number;
+  cost?: number;
 };
+
+async function costOf(model: ModelEntry, plane: GenerationPlane): Promise<number | undefined> {
+  if (!model.perSecondUsd) return undefined;
+  const source = plane.media.video?.[0]?.url;
+  const seconds = source ? await videoSeconds(source) : null;
+  return estimateCost(model, plane.settings, seconds) ?? undefined;
+}
 
 function hueOf(seed: string): number {
   let h = 0;
@@ -80,6 +89,7 @@ function draftOf(record: RunRecord): RunDraft {
     badge: record.badge,
     settings: record.settings,
     createdAt: record.createdAt,
+    cost: record.cost,
   };
 }
 
@@ -102,6 +112,7 @@ function runningRows(requestId: string, count: number, draft: RunDraft): RunReco
       art: artFor(draft.surface, hueOf(id), id),
       createdAt: draft.createdAt,
       settings: draft.settings,
+      cost: draft.cost,
     };
   });
 }
@@ -132,6 +143,8 @@ function terminalRows(requestId: string, draft: RunDraft, status: GenerationStat
       art: artFor(draft.surface, hueOf(id), id),
       createdAt: draft.createdAt,
       settings: draft.settings,
+      /* A canceled run is not billed, so it carries no estimate. */
+      cost: status.status === "canceled" ? undefined : draft.cost,
     };
   });
 }
@@ -372,6 +385,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
       badge,
       settings: plane.settings,
       createdAt: startedAt,
+      cost: await costOf(entry, plane),
     };
 
     setError(null);

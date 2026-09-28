@@ -28,6 +28,8 @@ export interface RunRecord {
   /** Resolved catalog settings this run was submitted with, so reuse can
       restore the dials and not just the words. Absent on pre-existing records. */
   settings?: Record<string, unknown>;
+  /** Estimated USD cost, when the model's rate and source length are known. */
+  cost?: number;
 }
 
 export const HISTORY_KEY = "history.v1";
