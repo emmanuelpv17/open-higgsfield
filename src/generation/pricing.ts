@@ -196,9 +196,8 @@ export function formatUsd(amount: number): string {
   return `$${amount.toFixed(amount < 0.1 ? 3 : 2)}`;
 }
 
-/** "≈ $0.42", "≈ $0.56–$0.84", or "≤ $0.72" for a ceiling. */
+/** "≈ $0.42" or "≈ $0.56–$0.84". A ceiling reads the same; its tooltip says so. */
 export function formatCost(cost: Cost): string {
-  if (cost.upTo) return `≤ ${formatUsd(cost.max ?? cost.usd)}`;
   return cost.max === undefined || cost.max === cost.usd
     ? `≈ ${formatUsd(cost.usd)}`
     : `≈ ${formatUsd(cost.usd)}–${formatUsd(cost.max)}`;

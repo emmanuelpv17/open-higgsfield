@@ -496,7 +496,7 @@ type Estimate = { kind: "price"; cost: Cost } | { kind: "needs-video" } | { kind
 
 const ESTIMATE_TIPS: Record<"price" | "needs-video", string> = {
   price:
-    "Estimated from the platform's published prices: a range where it lists two rates, a ceiling (≤) where it lists none for these settings",
+    "Estimated from the platform's published prices: a range where it lists two rates, the nearest published price where it lists none for these settings",
   "needs-video": "This model is billed per second of the source video",
 };
 
