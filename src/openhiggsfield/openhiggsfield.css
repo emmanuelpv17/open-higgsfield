@@ -1059,6 +1059,27 @@
   font-variant-numeric: tabular-nums;
   color: var(--tx4);
 }
+.ohf-skeleton-cancel {
+  position: relative;
+  z-index: 1;
+  margin-top: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--s2);
+  color: var(--tx2);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ohf-skeleton-cancel:hover:not(:disabled) {
+  color: var(--tx);
+  border-color: var(--tx4);
+}
+.ohf-skeleton-cancel:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
 
 /* ---------- empty gallery ---------- */
 

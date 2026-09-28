@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { hasPlatformCredentials, submitGeneration } from "@/generation/actions";
+import { cancelGeneration, hasPlatformCredentials, submitGeneration } from "@/generation/actions";
 import { MissingCredentialsError } from "@/generation/credentials";
 import { MODELS, getModel } from "@/generation/catalog";
 import type { Surface } from "@/generation/catalog";
@@ -43,6 +43,8 @@ export interface ActiveRun {
   modelLabel: string;
   ratio: string;
   startedAt: number;
+  /** Set once the platform has queued the run, which is when it can be canceled. */
+  requestId?: string;
 }
 
 type RunDraft = {
@@ -438,6 +440,13 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
 
   const deleteRun = useCallback((record: RunRecord) => deleteRuns([record]), [deleteRuns]);
 
+  const cancelRun = useCallback(async (requestId: string) => {
+    const result = await cancelGeneration(requestId);
+    if (!result.ok && alive.current) {
+      setError(`Could not cancel — ${result.error}. A run that has started rendering finishes and is billed.`);
+    }
+  }, []);
+
   /* History is newest-first by construction, so the restored runs drop back
      into their own places rather than onto the top of the grid. */
   const restoreDeleted = useCallback(() => {
@@ -647,6 +656,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
             onFavorite={toggleFavorite}
             onDownload={downloadRun}
             onDelete={deleteRun}
+            onCancel={cancelRun}
             onStarter={applyStarter}
             galleryRef={galleryRef}
           />
