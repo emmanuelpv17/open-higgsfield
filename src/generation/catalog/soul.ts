@@ -23,3 +23,10 @@ export const soul2: ModelEntry = {
   roles: {},
   settings: soulSettings,
 };
+export const soulStandard: ModelEntry = {
+  id: "soul-standard",
+  surface: "image",
+  label: "Soul Standard",
+  roles: {},
+  settings: { ...soulSettings, aspectRatio: { type: "enum", values: SOUL_ASPECT, default: "4:3" } },
+};

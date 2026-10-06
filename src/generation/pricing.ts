@@ -136,6 +136,11 @@ const PRICING: Record<string, Pricer> = {
   "kling-3-motion-std": perSourceSecond(() => 0.126),
   "kling-3-motion-pro": perSourceSecond(() => 0.168),
   "kling-2.6": perSecond(() => [0.07, 0.14]),
+  "kling-2.6-motion-std": perSourceSecond(() => 0.07),
+  "kling-2.6-motion-pro": perSourceSecond(() => 0.112),
+  /* Token-billed like Seedance at $0.0214 per 1,000 tokens (16:9 figures
+     below); 0.6x that with a video reference, which this does not discount. */
+  "cinema-studio-4": perSecond(byResolution({ "480p": 0.2056, "720p": 0.4622 })),
   "kling-2.5": perSecond(() => 0.042),
   "kling-o3": perSecond(() => 0.084),
   "kling-o1": perSecond(() => [0.084, 0.112]),
@@ -160,7 +165,8 @@ const PRICING: Record<string, Pricer> = {
 
   /* ---------- image, per result ---------- */
   "soul-2": perResult({ "720p": 0.0032, "1080p": 0.0057 }, resolutionOf),
-  /* Not on the console; the console's Soul Standard prices stand in. */
+  "soul-standard": perResult({ "720p": 0.0938, "1080p": 0.1875 }, resolutionOf),
+  /* Not on the console; Soul Standard's prices stand in. */
   "soul-cinema": borrowed(perResult({ "720p": 0.0938, "1080p": 0.1875 }, resolutionOf)),
   /* Only three combinations are published; the preset mode costs 10% more but is not wired. */
   "marketing-studio-image": perResult(
@@ -174,10 +180,9 @@ const PRICING: Record<string, Pricer> = {
   /* Not on the console: priced like Qwen Image 3. */
   "flux-2": borrowed(perResult({ "1k": 0.04, "2k": 0.075, "4k": 0.15 }, resolutionOf)),
   "ideogram-4": { price: () => flat(0.03) },
-  /* 2k is sold as Recraft 4.1 Pro. */
-  "recraft-4.1": perResult({ "1k": 0.035 }, resolutionOf, (settings) =>
-    settings.resolution === "2k" ? 0.21 : settings.resolution === "4k" ? 0.42 : undefined,
-  ),
+  /* 1k on the base endpoint, 2k on its Pro sibling. */
+  "recraft-4.1": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
+  "recraft-4.1-utility": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
   "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf, with4k({ "2k": 0.075 })),
   "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf, with4k({ "2k": 0.015 })),
 };

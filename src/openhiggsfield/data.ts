@@ -88,7 +88,22 @@ const SETTING_LABELS: Record<string, string> = {
   multiShots: "Multi-shot",
   keepOriginalSound: "Keep original sound",
   characterOrientation: "Orientation",
+  genre: "Genre",
+  era: "Era",
+  pacing: "Pacing",
+  light: "Lighting",
+  cameraMovement: "Camera move",
+  cameraModel: "Camera",
+  cameraLens: "Lens",
+  cameraAperture: "Aperture",
+  colorPalette: "Palette",
 };
+
+/* Cinema Studio's creative controls arrive as kebab-case slugs. */
+const SLUG_KEYS = new Set([
+  "genre", "era", "pacing", "light", "cameraMovement", "cameraModel", "cameraLens",
+  "cameraAperture", "colorPalette",
+]);
 
 /* A pill carries one word; "Generate audio" is a panel label, not a control on
    a crowded rail. Only keys that read badly at pill length appear here. */
@@ -109,6 +124,7 @@ export function settingPillValue(key: string, value: unknown): string {
   const text = settingValueLabel(key, value);
   if (key === "quality") return `${text.charAt(0).toUpperCase()}${text.slice(1)} quality`;
   if (key === "moderation") return `Moderation ${text.toLowerCase()}`;
+  if (SLUG_KEYS.has(key)) return value === "auto" ? `${settingPillLabel(key)} auto` : text;
   return text;
 }
 
@@ -125,6 +141,7 @@ export function settingValueLabel(key: string, value: unknown): string {
   if (text === "auto") return "Auto";
   if (/^\d+k$/.test(text)) return text.toUpperCase();
   if (key === "outputFormat") return text.toUpperCase();
+  if (SLUG_KEYS.has(key)) return text.replace(/-/g, " ");
   return text;
 }
 

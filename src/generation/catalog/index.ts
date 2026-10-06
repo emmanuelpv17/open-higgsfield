@@ -1,3 +1,4 @@
+import { cinemaStudio4 } from "./cinema-studio";
 import { dop } from "./dop";
 import { flux2 } from "./flux-2";
 import { flux3 } from "./flux-3";
@@ -8,7 +9,7 @@ import { happyHorse1 } from "./happy-horse-1";
 import { happyHorse11 } from "./happy-horse-1.1";
 import { ideogram4 } from "./ideogram-4";
 import { kling25 } from "./kling-2.5";
-import { kling26 } from "./kling-2.6";
+import { kling26, kling26MotionPro, kling26MotionStd } from "./kling-2.6";
 import {
   kling34k,
   kling3MotionPro,
@@ -27,10 +28,10 @@ import { minimaxHailuo23 } from "./minimax-hailuo-2.3";
 import { parseSettings } from "./parse-settings";
 import { pixverse6 } from "./pixverse-6";
 import { qwenImage3 } from "./qwen-image-3";
-import { recraft41 } from "./recraft-4.1";
+import { recraft41, recraft41Utility } from "./recraft-4.1";
 import { seedance2, seedance2Fast, seedance2Mini } from "./seedance-2";
 import { seedance25, seedance25Edit, seedance25Extend } from "./seedance-2.5";
-import { soul2, soulCinema } from "./soul";
+import { soul2, soulCinema, soulStandard } from "./soul";
 import type { ModelEntry } from "./types";
 import { wan26 } from "./wan-2.6";
 import { wan27 } from "./wan-2.7";
@@ -41,7 +42,9 @@ import { zImageTurbo } from "./z-image-turbo";
 export const MODELS: readonly ModelEntry[] = [
   soul2,
   soulCinema,
+  soulStandard,
   marketingStudioImage,
+  cinemaStudio4,
   genjutsuMotion,
   genjutsuSwap,
   seedance25,
@@ -56,10 +59,13 @@ export const MODELS: readonly ModelEntry[] = [
   kling34k,
   kling3MotionStd,
   kling3MotionPro,
+  kling26MotionStd,
+  kling26MotionPro,
   flux2,
   grokImagine2,
   ideogram4,
   recraft41,
+  recraft41Utility,
   qwenImage3,
   zImageTurbo,
   wan3,
