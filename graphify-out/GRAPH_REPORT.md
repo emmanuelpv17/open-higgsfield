@@ -1,31 +1,36 @@
 # Graph Report - open-higgsfield  (2026-10-06)
 
 ## Corpus Check
-- Corpus is ~44,563 words - fits in a single context window. You may not need a graph.
+- Corpus is ~44,653 words - fits in a single context window. You may not need a graph.
 
 ## Summary
-- 550 nodes · 1387 edges · 19 communities (17 shown, 2 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 21 edges (avg confidence: 0.68)
-- Token cost: 0 input · 0 output
+- 597 nodes · 1452 edges · 23 communities (20 shown, 3 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 45 edges (avg confidence: 0.87)
+- Token cost: 186,871 input · 0 output
 
 ## Community Hubs (Navigation)
-- Asset Picker & Gallery UI
-- Studio Page & Cost
-- Media Upload & Assets
-- Generation Actions & Architecture
-- Video Model Defaults
+- Studio Page & Viewer
+- Gallery & Media History
+- Stores, Cost & Pricing
+- Brand Assets & Build
+- Video Model Definitions
+- Image Model Definitions
+- Model Provider Logos
 - Package Dependencies
-- Next.js App Shell
+- Composer & Model Families
+- Blob Uploads & Device ID
+- Server Actions & Credentials
 - TypeScript Config
-- Kling & Grok Video Models
-- Seedance & Soul Models
-- Pricing Rules
-- Blob Upload Route & Device ID
-- Brand Asset Build Script
-- Platform API Mapping
-- Image Models
-- Settings Controls
-- Catalog Types & Genjutsu
+- Settings Pills UI
+- Genjutsu & Catalog Types
+- Platform Request Mapping
+- Platform API Client
+- Generation Polling
+- Design Principles & Workspace
+- Generation API Contract
+- API Key Modal
+- Session Start Hook
+- Batch Generation
 
 ## God Nodes (most connected - your core abstractions)
 1. `OpenHiggsfieldApp()` - 36 edges
@@ -40,109 +45,130 @@
 10. `react` - 14 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `Higgsfield Logo (monochrome currentColor SVG)` --conceptually_related_to--> `OpenHiggsfield AI App Icon (32px rounded dark plate, light/dark aware)`  [INFERRED]
+  public/model-icons/higgsfield.svg → src/app/icon.svg
+- `Apple Touch Icon 180px (bracket logo)` --implements--> `OpenHiggsfield Bracket Logo Mark (mint and grey corner brackets on dark)`  [INFERRED]
+  src/app/apple-icon.png → public/icon-512.png
+- `Qwen (Alibaba) Logo (monochrome currentColor SVG)` --semantically_similar_to--> `Wan (Alibaba) Logo (monochrome currentColor SVG)`  [INFERRED] [semantically similar]
+  public/model-icons/qwen.svg → public/model-icons/wan.svg
 - `OpenHiggsfieldPage()` --calls--> `OpenHiggsfieldApp()`  [EXTRACTED]
   src/app/page.tsx → src/openhiggsfield/openhiggsfield-app.tsx
-- `onSubmit()` --calls--> `savePlatformCredentials()`  [EXTRACTED]
-  src/openhiggsfield/key-modal.tsx → src/generation/actions.ts
-- `OpenHiggsfieldApp()` --calls--> `hasPlatformCredentials()`  [EXTRACTED]
-  src/openhiggsfield/openhiggsfield-app.tsx → src/generation/actions.ts
-- `submitGeneration()` --calls--> `getModel()`  [EXTRACTED]
-  src/generation/actions.ts → src/generation/catalog/index.ts
-- `submitGeneration()` --calls--> `parseSettings()`  [EXTRACTED]
-  src/generation/actions.ts → src/generation/catalog/parse-settings.ts
+- `savePlatformCredentials()` --calls--> `parseCredentialInput()`  [EXTRACTED]
+  src/generation/actions.ts → src/generation/credentials.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (19 total, 2 thin omitted)
+## Hyperedges (group relationships)
+- **Generate Request Flow** — readme_composer, readme_generate_object, readme_server_actions_only_caller, readme_generation_api, readme_run_lifecycle [EXTRACTED 1.00]
+- **Catalog-Driven Studio Rendering** — readme_catalog_source_of_truth, readme_model_catalog, readme_per_model_settings, readme_media_inputs_by_role [INFERRED 0.85]
+- **Model brand icon pack resolved by modelIconFile** — public_model_icons_flux_flux_logo, public_model_icons_grok_grok_logo, public_model_icons_happy_horse_happy_horse_logo, public_model_icons_higgsfield_higgsfield_logo, public_model_icons_ideogram_ideogram_logo, public_model_icons_kling_kling_logo, public_model_icons_ltx_ltx_logo, public_model_icons_minimax_minimax_logo, public_model_icons_pixverse_pixverse_logo, public_model_icons_qwen_qwen_logo, public_model_icons_recraft_recraft_logo, public_model_icons_wan_wan_logo, public_model_icons_z_image_z_image_logo, src_openhiggsfield_model_icon [EXTRACTED 1.00]
+- **Video-generation model provider logos** — public_model_icons_kling_kling_logo, public_model_icons_wan_wan_logo, public_model_icons_minimax_minimax_logo, public_model_icons_pixverse_pixverse_logo, public_model_icons_ltx_ltx_logo, public_model_icons_happy_horse_happy_horse_logo, public_model_icons_higgsfield_higgsfield_logo [INFERRED 0.75]
+- **Image-generation model provider logos** — public_model_icons_flux_flux_logo, public_model_icons_recraft_recraft_logo, public_model_icons_ideogram_ideogram_logo, public_model_icons_qwen_qwen_logo, public_model_icons_z_image_z_image_logo, public_model_icons_grok_grok_logo [INFERRED 0.65]
+- **PWA Web App Manifest Icon Set** — public_icon_192_pwa_app_icon_192, public_icon_512_pwa_app_icon_512, public_icon_maskable_512_pwa_maskable_icon, src_app_manifest [EXTRACTED 1.00]
+- **Brand Assets Generated by build-brand-assets Script** — scripts_build_brand_assets, public_icon_192_pwa_app_icon_192, public_icon_512_pwa_app_icon_512, public_icon_maskable_512_pwa_maskable_icon, src_app_apple_icon_apple_touch_icon, public_og_open_graph_image [EXTRACTED 1.00]
 
-### Community 0 - "Asset Picker & Gallery UI"
-Cohesion: 0.07
-Nodes (74): react, MODELS, asCost(), formatCost(), AssetPicker(), advanceOrClose(), commit(), pickRole() (+66 more)
+## Communities (23 total, 3 thin omitted)
 
-### Community 1 - "Studio Page & Cost"
+### Community 0 - "Studio Page & Viewer"
 Cohesion: 0.06
-Nodes (61): Five small Zustand stores, zustand, inter, metadata, OpenHiggsfieldPage(), getModel(), parseSettings(), GenerationPlane (+53 more)
+Nodes (83): Failed/NSFW/Canceled Run Tiles, Reuse / Recreate Run, Viewer, react, inter, metadata, OpenHiggsfieldPage(), Surface (+75 more)
 
-### Community 2 - "Media Upload & Assets"
-Cohesion: 0.05
-Nodes (61): @vercel/blob, MediaItem, MediaRole, useImageMedia, useVideoMedia, uploadMedia(), Asset, AssetKind (+53 more)
-
-### Community 3 - "Generation Actions & Architecture"
+### Community 1 - "Gallery & Media History"
 Cohesion: 0.06
-Nodes (56): Uploads to Vercel Blob via /api/blob, Catalog is the source of truth, Design principles (dark ground, lime accent), Gallery: Image/Video/Assets/Favorites, Generate request {model, prompt, media, settings}, History persisted in IndexedDB (60 records), Platform key in httpOnly cookie, Run polling every 4s, 10-minute deadline (+48 more)
+Nodes (58): Gallery, History in IndexedDB (60 records), Selection Mode / Bulk Actions, Undo Delete (6 seconds), uploadMedia(), Asset, AssetPicker(), advanceOrClose() (+50 more)
 
-### Community 4 - "Video Model Defaults"
+### Community 2 - "Stores, Cost & Pricing"
+Cohesion: 0.06
+Nodes (48): zustand, getModel(), parseSettings(), videoSeconds(), assemblePlane(), estimateCost(), formatCost(), formatUsd() (+40 more)
+
+### Community 3 - "Brand Assets & Build"
+Cohesion: 0.06
+Nodes (28): nextConfig, OpenHiggsfield Bracket Logo Mark (mint and grey corner brackets on dark), PWA App Icon 192px (rounded bracket logo), PWA App Icon 512px (rounded bracket logo), PWA Maskable Icon 512px (full-bleed bracket logo), Higgsfield Logo (monochrome currentColor SVG), Open Graph Image (OpenHiggsfield AI - Open Source AI Studio), next (+20 more)
+
+### Community 4 - "Video Model Definitions"
 Cohesion: 0.11
-Nodes (19): IMAGE_ASPECT, t2v(), VIDEO_ASPECT, videoModel(), dop, flux3, happyHorse11, happyHorse1 (+11 more)
+Nodes (18): IMAGE_ASPECT, t2v(), VIDEO_ASPECT, videoModel(), dop, flux3, happyHorse11, happyHorse1 (+10 more)
 
-### Community 5 - "Package Dependencies"
+### Community 5 - "Image Model Definitions"
+Cohesion: 0.10
+Nodes (20): imageModel(), flux2, grokImagine2, grokImagineVideo15, ideogram4, kling25, kling34k, kling3MotionPro (+12 more)
+
+### Community 6 - "Model Provider Logos"
+Cohesion: 0.10
+Nodes (25): FLUX (Black Forest Labs) Logo (monochrome currentColor SVG), Grok (xAI) Logo (monochrome currentColor SVG), Happy Horse Logo (monochrome currentColor SVG), Ideogram Logo (monochrome currentColor SVG), Kling (Kuaishou) Logo (monochrome currentColor SVG), LTX (Lightricks) Wordmark Logo (monochrome currentColor SVG), MiniMax (Hailuo) Logo (monochrome currentColor SVG), PixVerse Logo (monochrome currentColor SVG) (+17 more)
+
+### Community 7 - "Package Dependencies"
 Cohesion: 0.07
-Nodes (26): dependencies, next, react, react-dom, @tanstack/react-virtual, @vercel/blob, zustand, devDependencies (+18 more)
+Nodes (27): dependencies, next, react, react-dom, @tanstack/react-virtual, @vercel/blob, zustand, devDependencies (+19 more)
 
-### Community 6 - "Next.js App Shell"
-Cohesion: 0.13
-Nodes (13): nextConfig, next, metadata, viewport, OG_IMAGE, openGraphFor(), SITE_DESCRIPTION, SITE_DESCRIPTOR (+5 more)
+### Community 8 - "Composer & Model Families"
+Cohesion: 0.10
+Nodes (19): Composer (single prompt bar), Kling 3, Model Catalog (41 models), Seedance, Soul 2 / Soul Cinema, seedance25, seedance25Edit, seedance25Extend (+11 more)
 
-### Community 7 - "TypeScript Config"
+### Community 9 - "Blob Uploads & Device ID"
+Cohesion: 0.18
+Nodes (18): Asset Picker, OPEN_HIGGSFIELD_READ_WRITE_TOKEN, Media Inputs by Role, Vercel Blob Uploads via /api/blob, POST(), readDeviceId(), summarizeBlobEvent(), withDeviceCookie() (+10 more)
+
+### Community 10 - "Server Actions & Credentials"
+Cohesion: 0.20
+Nodes (18): ActionResult, asObject(), cancelGeneration(), getGenerationStatuses(), hasPlatformCredentials(), parseRequestIds(), readCredentials(), readStoredCredentials() (+10 more)
+
+### Community 11 - "TypeScript Config"
 Cohesion: 0.10
 Nodes (20): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+12 more)
 
-### Community 8 - "Kling & Grok Video Models"
+### Community 12 - "Settings Pills UI"
+Cohesion: 0.27
+Nodes (16): useSettings, ratioBox(), settingLabel(), settingPillLabel(), settingPillValue(), settingValueLabel(), ClockIcon(), FormatIcon() (+8 more)
+
+### Community 13 - "Genjutsu & Catalog Types"
 Cohesion: 0.16
-Nodes (13): grokImagineVideo15, kling25, kling34k, kling3MotionPro, kling3MotionStd, kling3Pro, kling3Settings, kling3Std (+5 more)
+Nodes (12): Genjutsu (Motion Transfer / Object Swap), genjutsuMotion, genjutsuSettings, genjutsuSwap, marketingStudioImage, GenerationPlane, MediaItem, MediaRole (+4 more)
 
-### Community 9 - "Seedance & Soul Models"
-Cohesion: 0.13
-Nodes (14): seedance25, seedance25Edit, seedance25Extend, seedance25Settings, seedance2, seedance2Fast, seedance2Mini, seedanceRoles (+6 more)
-
-### Community 10 - "Pricing Rules"
-Cohesion: 0.12
-Nodes (10): Cost, formatUsd(), perSecond(), perSourceSecond(), Pricer, PRICING, scaleCost(), seedance2 (+2 more)
-
-### Community 11 - "Blob Upload Route & Device ID"
-Cohesion: 0.25
-Nodes (14): POST(), readDeviceId(), summarizeBlobEvent(), withDeviceCookie(), withDevicePath(), blobPathname(), DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS (+6 more)
-
-### Community 12 - "Brand Asset Build Script"
-Cohesion: 0.15
-Nodes (7): bleedPlate(), brackets(), CHROME, markSvg(), ROOT, roundedPlate(), WORK
-
-### Community 13 - "Platform API Mapping"
+### Community 14 - "Platform Request Mapping"
 Cohesion: 0.22
 Nodes (14): MAP, mapByPaths(), mapGenjutsu(), mapKling3(), mapKlingMotion(), mapKlingTurbo(), mapMarketingStudio(), Mapped (+6 more)
 
-### Community 14 - "Image Models"
-Cohesion: 0.15
-Nodes (7): imageModel(), flux2, grokImagine2, ideogram4, qwenImage3, recraft41, zImageTurbo
-
-### Community 15 - "Settings Controls"
-Cohesion: 0.37
-Nodes (11): ratioBox(), settingLabel(), settingPillLabel(), settingPillValue(), settingValueLabel(), SettingPill(), SettingPopover(), Field() (+3 more)
-
-### Community 16 - "Catalog Types & Genjutsu"
+### Community 15 - "Platform API Client"
 Cohesion: 0.21
-Nodes (8): genjutsuMotion, genjutsuSettings, genjutsuSwap, marketingStudioImage, ModelEntry, SettingField, Surface, ActiveRun
+Nodes (12): asRecord(), send(), GenerationStatus, mapQueued(), mapStatus(), messageFromBody(), PlatformClientOptions, PlatformError (+4 more)
+
+### Community 16 - "Generation Polling"
+Cohesion: 0.20
+Nodes (13): deliver(), inflight, POLL_DEADLINE_MS, POLL_INTERVAL_MS, round(), schedule(), settleAll(), stopWatching() (+5 more)
+
+### Community 17 - "Design Principles & Workspace"
+Cohesion: 0.18
+Nodes (6): pnpm Workspace Config, onlyBuiltDependencies (esbuild, sharp), Higgsfield AI, Hosted version (openhiggsfield.ai), OpenHiggsfield AI, Tech Stack (Next.js 16, React 19, Zustand, pnpm, Vercel)
+
+### Community 18 - "Generation API Contract"
+Cohesion: 0.29
+Nodes (3): HF_API_BASE_URL, Generation API (POST /{model}, GET /requests/{id}/status), Platform Key (id:secret)
+
+### Community 19 - "API Key Modal"
+Cohesion: 0.48
+Nodes (6): clearPlatformCredentials(), savePlatformCredentials(), encodeCredentials(), KeyModal(), onClear(), onSubmit()
 
 ## Knowledge Gaps
-- **108 isolated node(s):** `nextConfig`, `name`, `private`, `type`, `dev` (+103 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 144 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **123 isolated node(s):** `session-start.sh script`, `nextConfig`, `name`, `private`, `type` (+118 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 161 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `Asset Picker & Gallery UI` to `Studio Page & Cost`, `Media Upload & Assets`, `Generation Actions & Architecture`, `Package Dependencies`, `Next.js App Shell`, `Settings Controls`?**
-  _High betweenness centrality (0.100) - this node is a cross-community bridge._
-- **What connects `nextConfig`, `name`, `private` to the rest of the system?**
-  _108 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Asset Picker & Gallery UI` be split into smaller, more focused modules?**
-  _Cohesion score 0.06670584778136938 - nodes in this community are weakly interconnected._
-- **Why does `next` connect `Next.js App Shell` to `Generation Actions & Architecture`, `Studio Page & Cost`, `Blob Upload Route & Device ID`, `Package Dependencies`?**
-  _High betweenness centrality (0.097) - this node is a cross-community bridge._
-- **Should `Studio Page & Cost` be split into smaller, more focused modules?**
-  _Cohesion score 0.06322624743677376 - nodes in this community are weakly interconnected._
-- **Why does `ModelEntry` connect `Catalog Types & Genjutsu` to `Asset Picker & Gallery UI`, `Studio Page & Cost`, `Media Upload & Assets`, `Video Model Defaults`, `Kling & Grok Video Models`, `Seedance & Soul Models`, `Settings Controls`?**
-  _High betweenness centrality (0.020) - this node is a cross-community bridge._
-- **Should `Media Upload & Assets` be split into smaller, more focused modules?**
-  _Cohesion score 0.05311871227364185 - nodes in this community are weakly interconnected._
+- **Why does `react` connect `Studio Page & Viewer` to `Gallery & Media History`, `Stores, Cost & Pricing`, `Brand Assets & Build`, `Model Provider Logos`, `Package Dependencies`, `Settings Pills UI`, `API Key Modal`?**
+  _High betweenness centrality (0.139) - this node is a cross-community bridge._
+- **What connects `session-start.sh script`, `nextConfig`, `name` to the rest of the system?**
+  _123 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Studio Page & Viewer` be split into smaller, more focused modules?**
+  _Cohesion score 0.05948295584534431 - nodes in this community are weakly interconnected._
+- **Why does `next` connect `Brand Assets & Build` to `Studio Page & Viewer`, `Blob Uploads & Device ID`, `Server Actions & Credentials`, `Package Dependencies`?**
+  _High betweenness centrality (0.116) - this node is a cross-community bridge._
+- **Should `Gallery & Media History` be split into smaller, more focused modules?**
+  _Cohesion score 0.05575065847234416 - nodes in this community are weakly interconnected._
+- **Should `Stores, Cost & Pricing` be split into smaller, more focused modules?**
+  _Cohesion score 0.05879692446856626 - nodes in this community are weakly interconnected._
+- **Should `Brand Assets & Build` be split into smaller, more focused modules?**
+  _Cohesion score 0.06377551020408163 - nodes in this community are weakly interconnected._
