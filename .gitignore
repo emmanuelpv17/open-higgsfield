@@ -12,3 +12,8 @@ tsconfig.tsbuildinfo
 
 .env*
 .idea
+
+# graphify local state
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
