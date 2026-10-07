@@ -10,7 +10,7 @@ export const PLATFORM_KEY_COOKIE_OPTIONS = {
 
 export class MissingCredentialsError extends Error {
   constructor() {
-    super("Missing platform key");
+    super("Falta tu clave API");
     this.name = "MissingCredentialsError";
   }
 }
@@ -34,11 +34,11 @@ export function decodeCredentials(raw: string | undefined): { apiKey: string } |
 
 export function parseCredentialInput(data: unknown): { apiKey: string } {
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error("Enter an API key");
+    throw new Error("Escribe tu clave API");
   }
   const record = data as { apiKey?: unknown; api_key?: unknown };
   const apiKey = record.apiKey ?? record.api_key;
-  if (typeof apiKey !== "string" || !apiKey.trim()) throw new Error("Enter an API key");
+  if (typeof apiKey !== "string" || !apiKey.trim()) throw new Error("Escribe tu clave API");
   return { apiKey: requireIdAndSecret(apiKey.trim()) };
 }
 
@@ -49,7 +49,7 @@ export function toAuthorizationHeader(apiKey: string): string {
 function requireIdAndSecret(apiKey: string): string {
   const colon = apiKey.indexOf(":");
   if (colon <= 0 || colon === apiKey.length - 1) {
-    throw new Error("API key must be id:secret");
+    throw new Error("La clave API debe tener el formato id:secret");
   }
   return apiKey;
 }

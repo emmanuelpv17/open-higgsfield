@@ -19,7 +19,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const incoming = (await request.json()) as HandleUploadBody;
   if (incoming.type === "blob.generate-client-token") {
     const refusal = await refuseUpload(incoming.payload.pathname);
-    if (refusal) return NextResponse.json({ error: refusal }, { status: refusal.startsWith("Add") ? 401 : 400 });
+    if (refusal) return NextResponse.json({ error: refusal }, { status: refusal.startsWith("Agrega") ? 401 : 400 });
   }
   const device =
     incoming.type === "blob.generate-client-token" ? await readDeviceId() : null;
@@ -59,10 +59,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 async function refuseUpload(pathname: string): Promise<string | null> {
   const jar = await cookies();
   if (!decodeCredentials(jar.get(PLATFORM_KEY_COOKIE)?.value)) {
-    return "Add your platform key before uploading files";
+    return "Agrega tu clave API antes de subir archivos";
   }
   if (!uploadKindOf(pathname)) {
-    return "Unsupported file type. Use JPG, PNG, WEBP or GIF images, MP4 or MOV video, WAV or MP3 audio";
+    return "Tipo de archivo no permitido. Usa imágenes JPG, PNG, WEBP o GIF, video MP4 o MOV, o audio WAV o MP3";
   }
   return null;
 }

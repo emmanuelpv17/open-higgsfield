@@ -13,7 +13,7 @@ export const aiInfluencer: ModelEntry = {
   surface: "image",
   label: "AI Influencer",
   roles: { start: 1, reference: 3 },
-  roleLabels: { start: "Identity photo", reference: "Item" },
+  roleLabels: { start: "Foto de identidad", reference: "Prenda" },
   promptOptional: true,
   settings: {
     tier: { type: "enum", values: INFLUENCER_TIERS, default: "normal" },

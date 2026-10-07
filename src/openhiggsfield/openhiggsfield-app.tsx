@@ -158,18 +158,18 @@ function failedRows(requestId: string, count: number, draft: RunDraft, error: st
 }
 
 function failureText(status: GenerationStatus): string {
-  if (status.status === "nsfw") return "the platform flagged the result as NSFW";
-  if (status.status === "canceled") return "the run was canceled";
+  if (status.status === "nsfw") return "Higgsfield bloqueó el resultado por su filtro de contenido sensible (NSFW)";
+  if (status.status === "canceled") return "se canceló";
   if (typeof status.error === "string" && status.error) return status.error;
-  return "the platform reported a failure";
+  return "Higgsfield reportó un error";
 }
 
 function describeError(caught: unknown): string {
   const message = caught instanceof Error ? caught.message : String(caught);
-  if (caught instanceof MissingCredentialsError || message.includes("Missing platform key")) {
-    return "Add your platform key to generate.";
+  if (caught instanceof MissingCredentialsError || message.includes("Falta tu clave API")) {
+    return "Agrega tu clave API para generar.";
   }
-  return `Generation failed — ${message}. Try again; if it repeats, check the key in the sidebar.`;
+  return `No se pudo generar — ${message}. Inténtalo de nuevo; si se repite, revisa tu clave API.`;
 }
 
 export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: string }) {
@@ -280,16 +280,16 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
         });
         markFresh(records.filter((record) => record.status === "completed").map((record) => record.id));
         if (records.some((record) => record.status === "failed")) {
-          const failure = records[0]?.error ?? "the platform reported a failure";
+          const failure = records[0]?.error ?? "Higgsfield reportó un error";
           setError(
             (prev) =>
-              prev ?? `Run not delivered — ${failure}. Adjust the prompt or settings and retry.`,
+              prev ?? `No se entregó el resultado — ${failure}. Cambia el texto o los ajustes e inténtalo de nuevo.`,
           );
         }
       } catch (caught) {
         if (!alive.current) return;
         const message = describeError(caught);
-        if (message.includes("platform key")) setKeysOpen(true);
+        if (message.includes("clave API")) setKeysOpen(true);
         setHistory((prev) => {
           const next = replaceRequest(prev, requestId, failedRows(requestId, expected, draft, message));
           void saveHistory(next);
@@ -341,7 +341,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const generate = useCallback(async () => {
     if (!keyConfigured) {
       setKeysOpen(true);
-      setError("Add your platform key to generate.");
+      setError("Agrega tu clave API para generar.");
       return;
     }
     const plane = assemblePlane();
@@ -408,7 +408,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
       } catch (caught) {
         if (!alive.current) return;
         const message = describeError(caught);
-        if (message.includes("platform key")) setKeysOpen(true);
+        if (message.includes("clave API")) setKeysOpen(true);
         setError((prev) => prev ?? message);
       } finally {
         if (alive.current) {
@@ -457,7 +457,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const cancelRun = useCallback(async (requestId: string) => {
     const result = await cancelGeneration(requestId);
     if (!result.ok && alive.current) {
-      setError(`Could not cancel — ${result.error}. A run that has started rendering finishes and is billed.`);
+      setError(`No se pudo cancelar — ${result.error}. Si ya empezó a generarse, termina y se cobra.`);
     }
   }, []);
 
@@ -581,7 +581,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     const ok = await saveFile(url, fileNameFor(record, 0));
     if (!ok) {
       setError(
-        "The platform’s CDN refused the read, so this run could not be saved. Open it to save it from the browser instead.",
+        "No se pudo descargar directamente. Ábrelo para guardarlo desde el navegador.",
       );
     }
   }, []);
@@ -603,8 +603,8 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     if (refused > 0) {
       setError(
         refused === files.length
-          ? "The platform’s CDN refused the read, so nothing could be saved. Open a run to save it from the browser instead."
-          : `${refused} of ${files.length} files could not be saved — the platform’s CDN refused the read. Open those runs to save them from the browser.`,
+          ? "No se pudo descargar nada directamente. Abre cada resultado para guardarlo desde el navegador."
+          : `${refused} de ${files.length} archivos no se pudieron descargar. Ábrelos para guardarlos desde el navegador.`,
       );
     }
   }, [pickedRecords]);
@@ -763,8 +763,8 @@ function UndoBar({
   const subject = one
     ? one.prompt
       ? `“${one.prompt}”`
-      : `${one.modelLabel} run`
-    : `${records.length} runs`;
+      : `resultado de ${one.modelLabel}`
+    : `${records.length} resultados`;
 
   return (
     <div className="ohf-undo" role="status">
@@ -773,15 +773,15 @@ function UndoBar({
         style={{ animationDuration: `${UNDO_MS}ms` }}
         aria-hidden
       />
-      <span className="ohf-undo-text">{`Deleted ${subject}`}</span>
+      <span className="ohf-undo-text">{`Eliminado: ${subject}`}</span>
       <button type="button" className="ohf-undo-act" onClick={onUndo}>
         <UndoIcon />
-        Undo
+        Deshacer
       </button>
       <button
         type="button"
         className="ohf-icon-btn ohf-icon-btn--ghost"
-        aria-label="Dismiss"
+        aria-label="Cerrar"
         onClick={onDismiss}
       >
         <CloseIcon size={12} />

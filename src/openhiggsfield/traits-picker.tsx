@@ -10,6 +10,8 @@ import {
   type InfluencerOption,
 } from "@/generation/influencer";
 
+import { influencerLabel } from "./influencer-labels";
+
 /* The catalog is the same for every visitor and changes rarely: one read per
    page load is enough. A failed read is forgotten so the next open retries. */
 let catalog: Promise<{ ok: true; value: InfluencerCategory[] } | { ok: false; error: string }> | null = null;
@@ -41,7 +43,7 @@ export function TraitsPicker({
     void loadCatalog().then((result) => {
       if (!live) return;
       if (!result.ok) {
-        setError(result.error.includes("platform key") ? "Add your platform key to load the options." : result.error);
+        setError(result.error.includes("clave API") ? "Agrega tu clave API para ver las opciones." : result.error);
         return;
       }
       setCategories(result.value);
@@ -79,27 +81,27 @@ export function TraitsPicker({
     <div className="ohf-traits">
       <div className="ohf-traits-head">
         <span className="ohf-traits-note">
-          {picked ? `${picked} picked` : "Nothing picked"} · anything left empty is chosen for you
+          {picked ? `${picked} elegido${picked > 1 ? "s" : ""}` : "Nada elegido"} · lo que dejes vacío se elige al azar
         </span>
         {picked > 0 && (
           <button type="button" className="ohf-btn-quiet" onClick={() => onChange("")}>
-            Clear
+            Borrar todo
           </button>
         )}
       </div>
       <div className="ohf-traits-list ohf-scroll">
         {error && <p className="ohf-presets-note">{error}</p>}
-        {!error && !categories && <p className="ohf-presets-note">Loading options…</p>}
+        {!error && !categories && <p className="ohf-presets-note">Cargando opciones…</p>}
         {shown.map((category) => {
           const picks = selection[category.key] ?? [];
           const options = category.options.filter((option) => !option.tiers || option.tiers.includes(tier));
           return (
             <section key={`${category.key}-${category.tiers.join()}`} className="ohf-traits-group">
               <h4 className="ohf-traits-title">
-                {category.label}
-                {category.max > 1 && <span className="ohf-traits-max">up to {category.max}</span>}
+                {influencerLabel(category.label)}
+                {category.max > 1 && <span className="ohf-traits-max">hasta {category.max}</span>}
               </h4>
-              <div className="ohf-traits-options" role="group" aria-label={category.label}>
+              <div className="ohf-traits-options" role="group" aria-label={influencerLabel(category.label)}>
                 {options.map((option) => (
                   <button
                     key={option.key}
@@ -122,7 +124,7 @@ export function TraitsPicker({
                         }}
                       />
                     ) : null}
-                    <span>{option.label}</span>
+                    <span>{influencerLabel(option.label)}</span>
                   </button>
                 ))}
               </div>

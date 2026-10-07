@@ -207,10 +207,10 @@ export function Composer({
     setOverlay(next);
   }
 
-  const attachLabel = tray.allFull ? "Change the inputs" : "Add an input";
+  const attachLabel = tray.allFull ? "Cambiar archivos" : "Agregar imagen, video o audio";
   const settingKey = overlay?.startsWith(SETTING) ? overlay.slice(SETTING.length) : null;
-  const generateLabel = batchValue > 1 ? `Generate ${batchValue} results` : "Generate";
-  const generateTip = disabled ? "Write a prompt first" : `${generateLabel} · ${shortcut ?? "⌘↵"}`;
+  const generateLabel = batchValue > 1 ? `Generar ${batchValue} resultados` : "Generar";
+  const generateTip = disabled ? "Primero escribe un texto" : `${generateLabel} · ${shortcut ?? "⌘↵"}`;
 
   return (
     <div className="ohf-dock" ref={dockRef} data-selecting={selecting}>
@@ -235,8 +235,8 @@ export function Composer({
             <button
               type="button"
               className="ohf-icon-btn ohf-icon-btn--ghost"
-              aria-label="Dismiss error"
-              title="Dismiss error"
+              aria-label="Cerrar aviso"
+              title="Cerrar aviso"
               onClick={() => onError(null)}
             >
               <CloseIcon size={12} />
@@ -288,7 +288,7 @@ export function Composer({
                     className="ohf-attach ohf-tip ohf-tip--start"
                     data-tip={attachLabel}
                     disabled={tray.allFull}
-                    aria-label={tray.uploading ? "Uploading" : attachLabel}
+                    aria-label={tray.uploading ? "Subiendo" : attachLabel}
                     aria-expanded={overlay === ASSETS}
                     aria-haspopup="dialog"
                     onClick={(event) => toggle(ASSETS, event.currentTarget)}
@@ -312,8 +312,8 @@ export function Composer({
                 className="ohf-prompt"
                 rows={1}
                 value={prompt.text}
-                placeholder={model.promptOptional ? "Optional — describe the character, or leave empty for a random one" : PROMPT_PLACEHOLDERS[surface]}
-                aria-label="Prompt"
+                placeholder={model.promptOptional ? "Opcional — describe al personaje o déjalo vacío para uno al azar" : PROMPT_PLACEHOLDERS[surface]}
+                aria-label="Texto (prompt)"
                 onPointerDown={() => setOverlay(null)}
                 onFocus={() => setOverlay(null)}
                 onChange={(event) => prompt.setText(event.target.value)}
@@ -331,7 +331,7 @@ export function Composer({
                 <button
                   type="button"
                   className="ohf-ctl ohf-ctl--model ohf-tip"
-                  data-tip="Change model"
+                  data-tip="Cambiar modelo"
                   aria-expanded={overlay === PICKER}
                   aria-haspopup="dialog"
                   onClick={(event) => toggle(PICKER, event.currentTarget)}
@@ -390,7 +390,7 @@ export function Composer({
                     <span className="ohf-generate-glyph" aria-hidden>
                       <ArrowUpIcon size={15} />
                     </span>
-                    <span className="ohf-generate-label">Generate</span>
+                    <span className="ohf-generate-label">Generar</span>
                     {shortcut && <kbd className="ohf-kbd">{shortcut}</kbd>}
                   </button>
                 </span>
@@ -421,7 +421,7 @@ function BatchStepper({
   const index = Math.max(0, counts.indexOf(value));
   const last = counts.length - 1;
   const max = counts[last]!;
-  const label = `Batch size — ${value} result${value > 1 ? "s" : ""} per press`;
+  const label = `Cantidad — ${value} resultado${value > 1 ? "s" : ""} por clic`;
 
   const step = (delta: number) => {
     const next = counts[Math.min(last, Math.max(0, index + delta))]!;
@@ -433,7 +433,7 @@ function BatchStepper({
       <button
         type="button"
         className="ohf-batch-step"
-        aria-label="Fewer results"
+        aria-label="Menos resultados"
         disabled={index <= 0}
         onClick={() => step(-1)}
       >
@@ -443,7 +443,7 @@ function BatchStepper({
         className="ohf-batch-value"
         role="spinbutton"
         tabIndex={0}
-        aria-label="Batch size"
+        aria-label="Cantidad"
         aria-valuemin={counts[0]}
         aria-valuemax={max}
         aria-valuenow={value}
@@ -478,7 +478,7 @@ function BatchStepper({
       <button
         type="button"
         className="ohf-batch-step"
-        aria-label="More results"
+        aria-label="Más resultados"
         disabled={index >= last}
         onClick={() => step(1)}
       >
@@ -495,8 +495,8 @@ type Estimate =
 
 const ESTIMATE_TIPS: Record<"price" | "per-second", string> = {
   price:
-    "Estimated from the platform's published prices: a range where it lists two rates, the nearest published price where it lists none for these settings",
-  "per-second": "Billed per second of the source video; attach it to see the total",
+    "Precio aproximado según las tarifas publicadas por Higgsfield",
+  "per-second": "Se cobra por segundo del video de origen; adjúntalo para ver el total",
 };
 
 /* Cost of one result before the press is made. Models billed on their source

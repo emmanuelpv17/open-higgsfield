@@ -134,7 +134,7 @@ function toCharacter(raw: unknown): SoulCharacter | null {
   if (typeof row.id !== "string") return null;
   return {
     id: row.id,
-    name: typeof row.name === "string" ? row.name : "Untitled",
+    name: typeof row.name === "string" ? row.name : "Sin nombre",
     status: typeof row.status === "string" ? row.status : "not_ready",
     thumbnail: typeof row.thumbnail_url === "string" ? row.thumbnail_url : null,
   };
@@ -169,12 +169,12 @@ export async function createSoulCharacter(data: unknown): Promise<ActionResult<S
   return settle(async () => {
     const input = (data ?? {}) as { name?: unknown; version?: unknown; urls?: unknown };
     const name = typeof input.name === "string" ? input.name.trim().slice(0, 100) : "";
-    if (!name) throw new Error("Give the character a name");
+    if (!name) throw new Error("Ponle un nombre al personaje");
     const version = typeof input.version === "string" && SOUL_VERSIONS.has(input.version) ? input.version : "v2";
     const urls = Array.isArray(input.urls)
       ? input.urls.filter((url): url is string => typeof url === "string" && /^https?:\/\//.test(url)).slice(0, 100)
       : [];
-    if (!urls.length) throw new Error("Add at least one photo");
+    if (!urls.length) throw new Error("Agrega al menos una foto");
     const created = toCharacter(
       await createPlatformClient(await readCredentials()).post("/v1/custom-references", {
         name,
@@ -182,7 +182,7 @@ export async function createSoulCharacter(data: unknown): Promise<ActionResult<S
         input_images: urls.map((url) => ({ type: "image_url", image_url: url })),
       }),
     );
-    if (!created) throw new Error("The platform did not return the new character");
+    if (!created) throw new Error("Higgsfield no devolvió el nuevo personaje");
     return created;
   });
 }

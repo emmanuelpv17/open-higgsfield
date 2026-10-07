@@ -8,14 +8,14 @@ import { encodePreset, presetId, type MarketingPreset } from "@/generation/prese
 
 /* The platform's own preset groups, named the way its console names them. */
 const TYPE_LABELS: Record<string, string> = {
-  ads: "Graphic ads",
-  product: "Product shots",
-  "product-shots": "Product shots",
-  marketplace: "Marketplace design",
+  ads: "Anuncios gráficos",
+  product: "Fotos de producto",
+  "product-shots": "Fotos de producto",
+  marketplace: "Diseño para marketplace",
 };
 
 function typeLabel(type: string): string {
-  return TYPE_LABELS[type] ?? (type ? type.charAt(0).toUpperCase() + type.slice(1).replace(/[-_]/g, " ") : "Other");
+  return TYPE_LABELS[type] ?? (type ? type.charAt(0).toUpperCase() + type.slice(1).replace(/[-_]/g, " ") : "Otros");
 }
 
 /** A model's presets, read live with the visitor's own key. For Marketing
@@ -46,7 +46,7 @@ export function PresetPicker({
         if (!live) return;
         setLoading(false);
         if (!result.ok) {
-          setError(result.error.includes("platform key") ? "Add your platform key to load presets." : result.error);
+          setError(result.error.includes("clave API") ? "Agrega tu clave API para ver los estilos." : result.error);
           return;
         }
         setError(null);
@@ -78,12 +78,12 @@ export function PresetPicker({
       <input
         className="ohf-presets-search"
         value={search}
-        placeholder="Search presets"
-        aria-label="Search presets"
+        placeholder="Buscar estilos"
+        aria-label="Buscar estilos"
         onChange={(event) => setSearch(event.target.value)}
       />
       {types.length > 1 && (
-        <div className="ohf-presets-types" role="group" aria-label="Preset groups">
+        <div className="ohf-presets-types" role="group" aria-label="Grupos de estilos">
           {["", ...types].map((option) => (
             <button
               key={option || "all"}
@@ -92,7 +92,7 @@ export function PresetPicker({
               aria-pressed={type === option}
               onClick={() => setType(option)}
             >
-              {option ? typeLabel(option) : "All"}
+              {option ? typeLabel(option) : "Todos"}
             </button>
           ))}
         </div>
@@ -105,7 +105,7 @@ export function PresetPicker({
             aria-pressed={!selected}
             onClick={() => onChange("")}
           >
-            <span className="ohf-opt-label">No preset — edit or generate freely</span>
+            <span className="ohf-opt-label">Sin estilo — editar o generar libremente</span>
           </button>
         )}
         {shown.map((preset) => (
@@ -121,16 +121,16 @@ export function PresetPicker({
           </button>
         ))}
         {error && <p className="ohf-presets-note">{error}</p>}
-        {!error && loading && <p className="ohf-presets-note">Loading presets…</p>}
-        {!error && !loading && items.length === 0 && <p className="ohf-presets-note">No presets match.</p>}
+        {!error && loading && <p className="ohf-presets-note">Cargando estilos…</p>}
+        {!error && !loading && items.length === 0 && <p className="ohf-presets-note">Ningún estilo coincide.</p>}
         {!error && !loading && cursor !== null && (
           <button type="button" className="ohf-opt ohf-presets-more" onClick={() => void loadMore()}>
-            Load more
+            Ver más
           </button>
         )}
       </div>
       {selected && source === "marketing-studio" && (
-        <p className="ohf-presets-note">Attach the product photo first; a model photo second is optional.</p>
+        <p className="ohf-presets-note">Adjunta primero la foto del producto; una foto de modelo como segunda es opcional.</p>
       )}
     </div>
   );
