@@ -14,7 +14,7 @@ const shared = {
      edited (up to 16). A preset (Product shots, Graphic ads, Marketplace and the
      rest of the platform's list) takes the product photo first and an optional
      model reference second. */
-  preset: { type: "preset", default: "" },
+  preset: { type: "preset", default: "", source: "marketing-studio" },
 } as const satisfies ModelEntry["settings"];
 
 export const marketingStudioImage: ModelEntry = {

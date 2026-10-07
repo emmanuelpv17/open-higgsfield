@@ -125,6 +125,7 @@ export function SettingPopover({
       <div className="ohf-popover ohf-popover--setting ohf-popover--presets" role="dialog" aria-label={label}>
         <Field label={label}>
           <PresetPicker
+            source={field.source}
             value={values[settingKey]}
             onChange={(next) => settings.set(model.id, { [settingKey]: next })}
           />

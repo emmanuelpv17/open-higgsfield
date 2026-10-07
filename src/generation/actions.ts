@@ -14,6 +14,7 @@ import {
 } from "./credentials";
 import { createPlatformClient } from "./platform";
 import type { StatusResult } from "./platform";
+import type { PresetSource } from "./catalog/types";
 import type { MarketingPreset } from "./presets";
 import { toPlatform } from "./to-platform";
 
@@ -53,25 +54,34 @@ export async function submitGeneration(plane: GenerationPlane) {
 
 export type PresetPage = { items: MarketingPreset[]; cursor: number | null };
 
-/** One page of Marketing Studio presets, read with the visitor's own key. */
-export async function listMarketingPresets(data: unknown): Promise<ActionResult<PresetPage>> {
+const PRESET_PATHS: Record<PresetSource, string> = {
+  "marketing-studio": "/marketing-studio/image/presets",
+  "genjutsu-restyle": "/models/higgsfield/genjutsu/restyle/v1.0/presets",
+};
+
+/** One page of a model's presets, read with the visitor's own key. The
+    platform answers either a page object or a bare list; both are accepted. */
+export async function listPresets(data: unknown): Promise<ActionResult<PresetPage>> {
   return settle(async () => {
-    const input = (data ?? {}) as { search?: unknown; cursor?: unknown };
+    const input = (data ?? {}) as { source?: unknown; search?: unknown; cursor?: unknown };
+    const source = input.source === "genjutsu-restyle" ? "genjutsu-restyle" : "marketing-studio";
     const query = new URLSearchParams({ size: "50" });
     if (typeof input.search === "string" && input.search.trim()) query.set("search", input.search.trim().slice(0, 100));
     if (typeof input.cursor === "number" && input.cursor > 0) query.set("cursor", String(Math.floor(input.cursor)));
     const payload = (await createPlatformClient(await readCredentials()).get(
-      `/marketing-studio/image/presets?${query}`,
-    )) as { items?: unknown; cursor?: unknown };
-    const items = Array.isArray(payload?.items)
-      ? payload.items.flatMap((item) => {
+      `${PRESET_PATHS[source]}?${query}`,
+    )) as unknown;
+    const page = (Array.isArray(payload) ? { items: payload } : (payload ?? {})) as { items?: unknown; cursor?: unknown };
+    const items = Array.isArray(page.items)
+      ? page.items.flatMap((item) => {
           const row = item as Record<string, unknown>;
-          return typeof row.id === "string" && typeof row.name === "string"
-            ? [{ id: row.id, name: row.name, type: typeof row.type === "string" ? row.type : "" }]
+          const name = typeof row.name === "string" ? row.name : typeof row.title === "string" ? row.title : null;
+          return typeof row.id === "string" && name
+            ? [{ id: row.id, name, type: typeof row.type === "string" ? row.type : "" }]
             : [];
         })
       : [];
-    return { items, cursor: typeof payload?.cursor === "number" ? payload.cursor : null };
+    return { items, cursor: typeof page.cursor === "number" ? page.cursor : null };
   });
 }
 

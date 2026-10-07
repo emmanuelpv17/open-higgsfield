@@ -52,9 +52,6 @@ const borrowed = (pricer: Pricer): Pricer => ({
   },
 });
 
-/** 4K where only 1K and 2K are published: twice the 2K price. */
-const with4k = (table: Record<string, number>): ((settings: Settings) => number | undefined) =>
-  (settings) => (settings.resolution === "4k" && table["2k"] !== undefined ? table["2k"] * 2 : undefined);
 const resolutionOf = (settings: Settings) => String(settings.resolution);
 
 /** Billed per started second of the requested duration. */
@@ -134,10 +131,15 @@ function marketingStudio(approx: boolean): Pricer {
   };
 }
 
+/* 1080p is not priced on the console; 720p's rate stands in as a floor. */
+const genjutsu = perSourceSecond(byResolution({ "480p": 0.318, "720p": 0.681, "1080p": 0.681 }));
+
 const PRICING: Record<string, Pricer> = {
   /* ---------- video ---------- */
-  "genjutsu-motion": perSourceSecond(byResolution({ "480p": 0.318, "720p": 0.681 })),
-  "genjutsu-swap": perSourceSecond(byResolution({ "480p": 0.318, "720p": 0.681 })),
+  "genjutsu-motion": genjutsu,
+  "genjutsu-swap": genjutsu,
+  /* Restyle publishes no price of its own; Genjutsu's rates stand in. */
+  "genjutsu-restyle": borrowed(genjutsu),
   /* Token-billed; the page's per-second figures are for 16:9 with no input video. */
   "seedance-2.5": perSecond(byResolution({ "480p": 0.2056, "720p": 0.4622 })),
   /* Billed on the input video plus the video generated: an edit writes as
@@ -174,8 +176,8 @@ const PRICING: Record<string, Pricer> = {
   "kling-o1": perSecond(byMode({ std: 0.084, pro: 0.112 })),
   "kling-o3-edit": perSourceSecond(() => 0.126),
   "kling-o1-edit": perSourceSecond(() => 0.126),
-  "wan-3": perSecond(byResolution({ "720p": 0.1, "1080p": 0.2 })),
-  "wan-3-prime": perSecond(byResolution({ "720p": 0.14, "1080p": 0.28 })),
+  "wan-3": perSecond(byResolution({ "480p": 0.05, "720p": 0.1, "1080p": 0.2 })),
+  "wan-3-prime": perSecond(byResolution({ "480p": 0.068, "720p": 0.14, "1080p": 0.28 })),
   "wan-2.7": perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 })),
   "wan-2.6": perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 })),
   "happy-horse-1": perSecond(byResolution({ "720p": 0.14, "1080p": 0.28 })),
@@ -185,12 +187,12 @@ const PRICING: Record<string, Pricer> = {
   "minimax-hailuo-2.3": {
     price: (settings) => flat(Number(settings.duration) <= 6 ? 0.28 : 0.56),
   },
-  "ltx-2.5-fast": perSecond(byResolution({ "720p": 0.09, "1080p": 0.13 })),
+  "ltx-2.5-fast": perSecond(byResolution({ "720p": 0.09, "1080p": 0.13, "2k": 0.19, "4k": 0.3 })),
   "ltx-2.5-pro": perSecond(byResolution({ "720p": 0.12, "1080p": 0.17 })),
-  "grok-imagine-video-1.5": perSecond(byResolution({ "720p": 0.14, "1080p": 0.25 })),
+  "grok-imagine-video-1.5": perSecond(byResolution({ "480p": 0.08, "720p": 0.14, "1080p": 0.25 })),
   /* Not on the console: priced like the nearest comparable models. */
   "flux-3": borrowed(perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 }))), // as Wan 2.7
-  "pixverse-6": borrowed(perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 }))), // as Wan 2.6
+  "pixverse-6": borrowed(perSecond(byResolution({ "360p": 0.1, "540p": 0.1, "720p": 0.1, "1080p": 0.15 }))), // as Wan 2.6
   dop: borrowed(perSecond(() => 0.084)), // as Kling 3.0 Std
 
   /* ---------- image, per result ---------- */
@@ -204,15 +206,15 @@ const PRICING: Record<string, Pricer> = {
   "marketing-studio-flare": marketingStudio(true),
   "marketing-studio-sunburst": marketingStudio(true),
   /* Published as 1k at low quality and 2k at medium; the request sets no quality. */
-  "grok-imagine-2": perResult({ "1k": 0.04, "2k": 0.08 }, resolutionOf, with4k({ "2k": 0.08 })),
+  "grok-imagine-2": perResult({ "1k": 0.04, "2k": 0.08 }, resolutionOf),
   /* Not on the console: priced like Qwen Image 3. */
   "flux-2": borrowed(perResult({ "1k": 0.04, "2k": 0.075, "4k": 0.15 }, resolutionOf)),
   "ideogram-4": { price: () => flat(0.03) },
   /* 1k on the base endpoint, 2k on its Pro sibling. */
   "recraft-4.1": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
   "recraft-4.1-utility": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
-  "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf, with4k({ "2k": 0.075 })),
-  "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf, with4k({ "2k": 0.015 })),
+  "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf),
+  "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf),
 };
 
 /** Whether this model is priced from the length of its source video. */

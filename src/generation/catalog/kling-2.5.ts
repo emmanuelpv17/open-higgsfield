@@ -12,6 +12,7 @@ export const kling25: ModelEntry = {
   surface: "video",
   label: "Kling 2.5 Turbo",
   roles: { start: 1 },
+  requires: ["start"],
   settings: turboSettings,
 };
 

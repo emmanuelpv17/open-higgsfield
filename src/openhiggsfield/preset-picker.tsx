@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { listMarketingPresets } from "@/generation/actions";
+import { listPresets } from "@/generation/actions";
+import type { PresetSource } from "@/generation/catalog";
 import { encodePreset, presetId, type MarketingPreset } from "@/generation/presets";
 
 /* The platform's own preset groups, named the way its console names them. */
@@ -17,12 +18,15 @@ function typeLabel(type: string): string {
   return TYPE_LABELS[type] ?? (type ? type.charAt(0).toUpperCase() + type.slice(1).replace(/[-_]/g, " ") : "Other");
 }
 
-/** Marketing Studio presets, read live with the visitor's own key. Picking one
-    switches the model to preset mode; "No preset" returns it to direct mode. */
+/** A model's presets, read live with the visitor's own key. For Marketing
+    Studio, picking one switches to preset mode and "No preset" returns to
+    direct mode; Genjutsu Restyle requires a style. */
 export function PresetPicker({
+  source,
   value,
   onChange,
 }: {
+  source: PresetSource;
   value: unknown;
   onChange: (next: string) => void;
 }) {
@@ -38,7 +42,7 @@ export function PresetPicker({
     let live = true;
     setLoading(true);
     const timer = setTimeout(() => {
-      void listMarketingPresets({ search }).then((result) => {
+      void listPresets({ source, search }).then((result) => {
         if (!live) return;
         setLoading(false);
         if (!result.ok) {
@@ -54,12 +58,12 @@ export function PresetPicker({
       live = false;
       clearTimeout(timer);
     };
-  }, [search]);
+  }, [search, source]);
 
   async function loadMore() {
     if (cursor === null) return;
     setLoading(true);
-    const result = await listMarketingPresets({ search, cursor });
+    const result = await listPresets({ source, search, cursor });
     setLoading(false);
     if (!result.ok) return setError(result.error);
     setItems((prev) => [...prev, ...result.value.items.filter((row) => !prev.some((p) => p.id === row.id))]);
@@ -94,14 +98,16 @@ export function PresetPicker({
         </div>
       )}
       <div className="ohf-opts ohf-scroll ohf-presets-list" role="group">
-        <button
-          type="button"
-          className="ohf-opt"
-          aria-pressed={!selected}
-          onClick={() => onChange("")}
-        >
-          <span className="ohf-opt-label">No preset — edit or generate freely</span>
-        </button>
+        {source === "marketing-studio" && (
+          <button
+            type="button"
+            className="ohf-opt"
+            aria-pressed={!selected}
+            onClick={() => onChange("")}
+          >
+            <span className="ohf-opt-label">No preset — edit or generate freely</span>
+          </button>
+        )}
         {shown.map((preset) => (
           <button
             key={preset.id}
@@ -123,7 +129,9 @@ export function PresetPicker({
           </button>
         )}
       </div>
-      {selected && <p className="ohf-presets-note">Attach the product photo first; a model photo second is optional.</p>}
+      {selected && source === "marketing-studio" && (
+        <p className="ohf-presets-note">Attach the product photo first; a model photo second is optional.</p>
+      )}
     </div>
   );
 }

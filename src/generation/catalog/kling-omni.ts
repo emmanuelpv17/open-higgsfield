@@ -46,6 +46,7 @@ export const klingO3Edit: ModelEntry = {
   surface: "video",
   label: "Kling O3 Video Edit",
   roles: { video: 1, reference: 4 },
+  requires: ["video"],
   settings: editSettings,
 };
 
@@ -55,5 +56,6 @@ export const klingO1Edit: ModelEntry = {
   surface: "video",
   label: "Kling O1 (Omni) Video Edit",
   roles: { video: 1, reference: 4 },
+  requires: ["video"],
   settings: { mode: { type: "enum", values: ["std", "pro"], default: "pro" } },
 };

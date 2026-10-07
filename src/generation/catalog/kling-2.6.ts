@@ -19,6 +19,7 @@ export const kling26MotionStd: ModelEntry = {
   surface: "video",
   label: "Kling 2.6 Motion Control",
   roles: { start: 1, video: 1 },
+  requires: ["start", "video"],
   settings: motionSettings,
 };
 
@@ -27,5 +28,6 @@ export const kling26MotionPro: ModelEntry = {
   surface: "video",
   label: "Kling 2.6 Motion Control Pro",
   roles: { start: 1, video: 1 },
+  requires: ["start", "video"],
   settings: motionSettings,
 };

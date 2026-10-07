@@ -100,6 +100,8 @@ const SETTING_LABELS: Record<string, string> = {
   colorPalette: "Palette",
   preset: "Preset",
   mode: "Mode",
+  renderingSpeed: "Speed",
+  imageWeight: "Image weight",
 };
 
 /* Cinema Studio's creative controls arrive as kebab-case slugs. */
@@ -127,6 +129,7 @@ export function settingPillValue(key: string, value: unknown): string {
   const text = settingValueLabel(key, value);
   if (key === "quality") return `${text.charAt(0).toUpperCase()}${text.slice(1)} quality`;
   if (key === "moderation") return `Moderation ${text.toLowerCase()}`;
+  if (key === "renderingSpeed") return `${text} speed`;
   if (key === "preset") return text === "None" ? "No preset" : text;
   if (SLUG_KEYS.has(key)) return value === "auto" ? `${settingPillLabel(key)} auto` : text;
   return text;
@@ -145,9 +148,10 @@ export function settingValueLabel(key: string, value: unknown): string {
   const text = String(value);
   if (key === "duration" && /^\d+$/.test(text)) return `${text}s`;
   if (text === "auto") return "Auto";
+  if (key === "renderingSpeed") return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
   if (/^\d+k$/.test(text)) return text.toUpperCase();
   if (key === "outputFormat") return text.toUpperCase();
-  if (SLUG_KEYS.has(key)) return text.replace(/-/g, " ");
+  if (SLUG_KEYS.has(key)) return text.replace(/[-_]/g, " ");
   return text;
 }
 
