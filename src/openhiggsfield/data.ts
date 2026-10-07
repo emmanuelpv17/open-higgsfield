@@ -193,8 +193,8 @@ export const ROLE_ACCEPT: Record<MediaRole, string> = {
   start: "image/jpeg,image/png,image/webp,image/gif",
   end: "image/jpeg,image/png,image/webp,image/gif",
   reference: "image/jpeg,image/png,image/webp,image/gif",
-  video: "video/mp4",
-  audio: "audio/wav,audio/x-wav",
+  video: "video/mp4,video/quicktime,.mov",
+  audio: "audio/wav,audio/x-wav,audio/mpeg,.mp3",
 };
 
 export function rolesOf(model: ModelEntry): MediaRole[] {
