@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import type { MediaItem, MediaRole, ModelEntry } from "@/generation/catalog";
 import { useImageMedia, useVideoMedia } from "@/generation/stores/media";
+import { isBlobUrl } from "@/generation/retention";
 import { uploadMedia } from "@/generation/upload";
 
 import { ROLE_ACCEPT, ROLE_LABELS, ROLE_TAGS, rolesOf } from "./data";
@@ -71,6 +72,20 @@ export function useMediaTray(
   }, []);
   useEffect(() => {
     if (uploadsLoaded) void saveUploads(uploads);
+  }, [uploadsLoaded, uploads]);
+
+  /* An attachment uploaded before the retention window has been deleted from
+     the store; sending it would fail the run, so it leaves the tray. Results
+     reused from history live elsewhere and stay. */
+  useEffect(() => {
+    if (!uploadsLoaded) return;
+    const fresh = new Set(uploads.map((row) => row.url));
+    for (const store of [useImageMedia, useVideoMedia]) {
+      const { items, remove } = store.getState();
+      for (const item of items) {
+        if (isBlobUrl(item.url) && !fresh.has(item.url)) remove(item.id);
+      }
+    }
   }, [uploadsLoaded, uploads]);
 
   const roles = rolesOf(model);
