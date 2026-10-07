@@ -1,9 +1,10 @@
+import { UPLOAD_RETENTION_MS } from "@/generation/retention";
+
 import { browserLegacy, defaultKv, type Kv, type LegacyStore } from "./idb";
 import type { AssetKind } from "./data";
 
-/** A file the visitor sent to Blob. The URL is public and permanent, so the
-    library outlives the session that produced it — the same reason run history
-    is kept, and the reason the asset picker can offer both. */
+/** A file the visitor sent to Blob. The store deletes uploads after
+    UPLOAD_RETENTION_MS, so the library only offers the ones still there. */
 export interface UploadRecord {
   id: string;
   url: string;
@@ -24,9 +25,12 @@ export async function loadUploads(
 ): Promise<UploadRecord[]> {
   const stored = await readIdb(kv);
   const fromLegacy = readLegacy(legacy);
-  if (stored.length === 0) return fromLegacy;
-  if (fromLegacy.length === 0) return stored;
-  return mergeUploads(stored, fromLegacy);
+  const all = stored.length === 0 ? fromLegacy : fromLegacy.length === 0 ? stored : mergeUploads(stored, fromLegacy);
+  return all.filter(isFresh);
+}
+
+function isFresh(row: UploadRecord): boolean {
+  return row.createdAt > Date.now() - UPLOAD_RETENTION_MS;
 }
 
 export async function saveUploads(
