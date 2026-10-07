@@ -81,6 +81,21 @@ Next.js 16 App Router on Vercel · React 19 · plain CSS · Zustand · pnpm
 
 ---
 
+## Use it from Claude (MCP connector)
+
+The deployment can act as a remote MCP server so Claude can list models,
+generate and check results from any chat, spending from one Higgsfield key.
+It stays off (404) until both variables are set in the deployment:
+
+- `OPEN_HIGGSFIELD_MCP_API_KEY` — the Higgsfield key as `id:secret`
+- `OPEN_HIGGSFIELD_MCP_SECRET` — a long random string (24+ letters, digits or `-`)
+
+Then add a custom connector in Claude with the URL
+`https://<your-deployment>/api/mcp/<OPEN_HIGGSFIELD_MCP_SECRET>`. Anyone with
+that URL can spend from the key, so keep it private and rotate the secret if
+it leaks. Tools: `list_models`, `list_options`, `generate`, `check_generation`,
+`cancel_generation`.
+
 ## Architecture
 
 Each generate is one object: `{ model, prompt, media, settings }`.

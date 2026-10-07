@@ -9,11 +9,13 @@
     "brand": "node scripts/build-brand-assets.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@tanstack/react-virtual": "^3.14.10",
     "@vercel/blob": "^2.8.0",
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "zod": "^4.6.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
