@@ -10,7 +10,9 @@ export type MediaItem = {
 export type SettingField =
   | { type: "enum"; values: readonly string[]; default: string }
   | { type: "range"; min: number; max: number; default: number; step?: number }
-  | { type: "boolean"; default: boolean };
+  | { type: "boolean"; default: boolean }
+  /** A value chosen from a list the platform serves at run time. */
+  | { type: "preset"; default: "" };
 
 export type PlatformPaths = {
   text?: string;

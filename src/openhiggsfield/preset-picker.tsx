@@ -1,0 +1,129 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { listMarketingPresets } from "@/generation/actions";
+import { encodePreset, presetId, type MarketingPreset } from "@/generation/presets";
+
+/* The platform's own preset groups, named the way its console names them. */
+const TYPE_LABELS: Record<string, string> = {
+  ads: "Graphic ads",
+  product: "Product shots",
+  "product-shots": "Product shots",
+  marketplace: "Marketplace design",
+};
+
+function typeLabel(type: string): string {
+  return TYPE_LABELS[type] ?? (type ? type.charAt(0).toUpperCase() + type.slice(1).replace(/[-_]/g, " ") : "Other");
+}
+
+/** Marketing Studio presets, read live with the visitor's own key. Picking one
+    switches the model to preset mode; "No preset" returns it to direct mode. */
+export function PresetPicker({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (next: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [items, setItems] = useState<MarketingPreset[]>([]);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [type, setType] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const selected = presetId(value);
+
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    const timer = setTimeout(() => {
+      void listMarketingPresets({ search }).then((result) => {
+        if (!live) return;
+        setLoading(false);
+        if (!result.ok) {
+          setError(result.error.includes("platform key") ? "Add your platform key to load presets." : result.error);
+          return;
+        }
+        setError(null);
+        setItems(result.value.items);
+        setCursor(result.value.cursor);
+      });
+    }, search ? 300 : 0);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [search]);
+
+  async function loadMore() {
+    if (cursor === null) return;
+    setLoading(true);
+    const result = await listMarketingPresets({ search, cursor });
+    setLoading(false);
+    if (!result.ok) return setError(result.error);
+    setItems((prev) => [...prev, ...result.value.items.filter((row) => !prev.some((p) => p.id === row.id))]);
+    setCursor(result.value.cursor);
+  }
+
+  const types = [...new Set(items.map((item) => item.type))].filter(Boolean);
+  const shown = type ? items.filter((item) => item.type === type) : items;
+
+  return (
+    <div className="ohf-presets">
+      <input
+        className="ohf-presets-search"
+        value={search}
+        placeholder="Search presets"
+        aria-label="Search presets"
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      {types.length > 1 && (
+        <div className="ohf-presets-types" role="group" aria-label="Preset groups">
+          {["", ...types].map((option) => (
+            <button
+              key={option || "all"}
+              type="button"
+              className="ohf-presets-type"
+              aria-pressed={type === option}
+              onClick={() => setType(option)}
+            >
+              {option ? typeLabel(option) : "All"}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="ohf-opts ohf-scroll ohf-presets-list" role="group">
+        <button
+          type="button"
+          className="ohf-opt"
+          aria-pressed={!selected}
+          onClick={() => onChange("")}
+        >
+          <span className="ohf-opt-label">No preset — edit or generate freely</span>
+        </button>
+        {shown.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="ohf-opt"
+            aria-pressed={preset.id === selected}
+            onClick={() => onChange(encodePreset(preset))}
+          >
+            <span className="ohf-opt-label">{preset.name}</span>
+            {preset.type && <span className="ohf-presets-tag">{typeLabel(preset.type)}</span>}
+          </button>
+        ))}
+        {error && <p className="ohf-presets-note">{error}</p>}
+        {!error && loading && <p className="ohf-presets-note">Loading presets…</p>}
+        {!error && !loading && items.length === 0 && <p className="ohf-presets-note">No presets match.</p>}
+        {!error && !loading && cursor !== null && (
+          <button type="button" className="ohf-opt ohf-presets-more" onClick={() => void loadMore()}>
+            Load more
+          </button>
+        )}
+      </div>
+      {selected && <p className="ohf-presets-note">Attach the product photo first; a model photo second is optional.</p>}
+    </div>
+  );
+}

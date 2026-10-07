@@ -11,6 +11,7 @@ import {
   settingValueLabel,
 } from "./data";
 import { AudioIcon, ClockIcon, FormatIcon, GemIcon } from "./icons";
+import { PresetPicker } from "./preset-picker";
 import { Field, OptionList, Slider } from "./ui";
 
 /* One drawn mark per setting the catalog is known to declare. Anything new
@@ -118,6 +119,19 @@ export function SettingPopover({
   if (!field || field.type === "boolean") return null;
 
   const label = settingLabel(settingKey);
+
+  if (field.type === "preset") {
+    return (
+      <div className="ohf-popover ohf-popover--setting ohf-popover--presets" role="dialog" aria-label={label}>
+        <Field label={label}>
+          <PresetPicker
+            value={values[settingKey]}
+            onChange={(next) => settings.set(model.id, { [settingKey]: next })}
+          />
+        </Field>
+      </div>
+    );
+  }
 
   if (field.type === "enum") {
     const value = typeof values[settingKey] === "string" ? (values[settingKey] as string) : field.default;

@@ -1,5 +1,6 @@
 import { getModel } from "./catalog";
 import { CINEMA_CONTROLS } from "./catalog/cinema-studio";
+import { presetId } from "./presets";
 import type { GenerationPlane, PlatformPaths } from "./catalog/types";
 
 type Mapped = { path: string; body: Record<string, unknown> };
@@ -27,7 +28,9 @@ const MAP: Record<string, Mapper> = {
   "seedance-2.5": (plane) => mapSeedance(plane, "bytedance/seedance-2.5"),
   "seedance-2.5-edit": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-edit", false),
   "seedance-2.5-extend": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-extend", true),
-  "marketing-studio-image": mapMarketingStudio,
+  "marketing-studio-image": (plane) => mapMarketingStudio(plane, "marketing-studio/image", true),
+  "marketing-studio-flare": (plane) => mapMarketingStudio(plane, "marketing-studio/image/flare", false),
+  "marketing-studio-sunburst": (plane) => mapMarketingStudio(plane, "marketing-studio/image/sunburst", false),
   "genjutsu-motion": (plane) => mapGenjutsu(plane, "higgsfield/genjutsu/motion-transfer/v1.0"),
   // The platform publishes this path with the "higgsfiled" spelling.
   "genjutsu-swap": (plane) => mapGenjutsu(plane, "higgsfiled/genjutsu/object-swap/v1.0"),
@@ -146,18 +149,24 @@ function mapRecraft(plane: GenerationPlane, base: string, pro: string): Mapped {
   };
 }
 
-function mapMarketingStudio(plane: GenerationPlane): Mapped {
+/** Direct mode edits up to 16 images; a preset takes the product photo first
+    and an optional model second. 2.0 Alpha only renders presets at high
+    quality; the 2.5 versions keep the chosen quality. */
+function mapMarketingStudio(plane: GenerationPlane, path: string, presetForcesHigh: boolean): Mapped {
   const refs = urls(plane, "reference");
+  const preset = presetId(plane.settings.preset);
+  const images = preset ? refs.slice(0, 2) : refs;
   return {
-    path: "marketing-studio/image",
+    path,
     body: {
       prompt: plane.prompt.text,
       aspect_ratio: plane.settings.aspectRatio,
       resolution: plane.settings.resolution,
-      quality: plane.settings.quality,
+      quality: preset && presetForcesHigh ? "high" : plane.settings.quality,
       moderation: plane.settings.moderation,
-      enhance_prompt: false,
-      ...(refs.length ? { image_urls: refs } : {}),
+      enhance_prompt: Boolean(preset),
+      ...(preset ? { preset_id: preset } : {}),
+      ...(images.length ? { image_urls: images } : {}),
     },
   };
 }

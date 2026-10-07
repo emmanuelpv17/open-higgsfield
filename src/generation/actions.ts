@@ -14,6 +14,7 @@ import {
 } from "./credentials";
 import { createPlatformClient } from "./platform";
 import type { StatusResult } from "./platform";
+import type { MarketingPreset } from "./presets";
 import { toPlatform } from "./to-platform";
 
 /* Server actions answer failures as values: a thrown error reaches a production
@@ -47,6 +48,30 @@ export async function submitGeneration(plane: GenerationPlane) {
     };
     const { path, body } = toPlatform(parsed);
     return createPlatformClient(await readCredentials()).submit(path, body);
+  });
+}
+
+export type PresetPage = { items: MarketingPreset[]; cursor: number | null };
+
+/** One page of Marketing Studio presets, read with the visitor's own key. */
+export async function listMarketingPresets(data: unknown): Promise<ActionResult<PresetPage>> {
+  return settle(async () => {
+    const input = (data ?? {}) as { search?: unknown; cursor?: unknown };
+    const query = new URLSearchParams({ size: "50" });
+    if (typeof input.search === "string" && input.search.trim()) query.set("search", input.search.trim().slice(0, 100));
+    if (typeof input.cursor === "number" && input.cursor > 0) query.set("cursor", String(Math.floor(input.cursor)));
+    const payload = (await createPlatformClient(await readCredentials()).get(
+      `/marketing-studio/image/presets?${query}`,
+    )) as { items?: unknown; cursor?: unknown };
+    const items = Array.isArray(payload?.items)
+      ? payload.items.flatMap((item) => {
+          const row = item as Record<string, unknown>;
+          return typeof row.id === "string" && typeof row.name === "string"
+            ? [{ id: row.id, name: row.name, type: typeof row.type === "string" ? row.type : "" }]
+            : [];
+        })
+      : [];
+    return { items, cursor: typeof payload?.cursor === "number" ? payload.cursor : null };
   });
 }
 

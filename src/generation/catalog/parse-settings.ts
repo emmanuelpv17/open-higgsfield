@@ -19,6 +19,10 @@ export function parseSettings(
       out[key] = picked;
       continue;
     }
+    if (field.type === "preset") {
+      out[key] = typeof value === "string" && value.length <= 300 ? value : field.default;
+      continue;
+    }
     out[key] = typeof value === "boolean" ? value : field.default;
   }
   return out;

@@ -1,3 +1,5 @@
+import { presetId } from "./presets";
+
 /* Published Higgsfield API prices in USD, regular (undiscounted) rates, read
    from each model's page on console.higgsfield.ai. The platform's responses
    carry no price, so everything here is an estimate: a model or setting with
@@ -108,6 +110,24 @@ const seedance2 = perSecond(
   }),
 );
 
+/* Three combinations are published; 4K at high is the dearest, so it stands in
+   for the rest. A preset costs 10% more than the same request without one. */
+function marketingStudio(approx: boolean): Pricer {
+  const base = perResult(
+    { "1k/low": 0.0162, "2k/low": 0.0222, "4k/high": 0.7219 },
+    (settings) => `${settings.resolution}/${settings.quality}`,
+    () => 0.7219,
+  );
+  return {
+    price: (settings, seconds) => {
+      const cost = base.price(settings, seconds);
+      if (!cost) return null;
+      const usd = presetId(settings.preset) ? cost.usd * 1.1 : cost.usd;
+      return { ...cost, usd, ...(approx ? { approx: true } : {}) };
+    },
+  };
+}
+
 const PRICING: Record<string, Pricer> = {
   /* ---------- video ---------- */
   "genjutsu-motion": perSourceSecond(byResolution({ "480p": 0.318, "720p": 0.681 })),
@@ -169,12 +189,10 @@ const PRICING: Record<string, Pricer> = {
   /* Not on the console; Soul Standard's prices stand in. */
   "soul-cinema": borrowed(perResult({ "720p": 0.0938, "1080p": 0.1875 }, resolutionOf)),
   /* Only three combinations are published; the preset mode costs 10% more but is not wired. */
-  "marketing-studio-image": perResult(
-    { "1k/low": 0.0162, "2k/low": 0.0222, "4k/high": 0.7219 },
-    (settings) => `${settings.resolution}/${settings.quality}`,
-    /* 4K at high quality is the dearest combination, so it caps the rest. */
-    () => 0.7219,
-  ),
+  "marketing-studio-image": marketingStudio(false),
+  /* The 2.5 versions publish only a range; 2.0's prices stand in. */
+  "marketing-studio-flare": marketingStudio(true),
+  "marketing-studio-sunburst": marketingStudio(true),
   /* Published as 1k at low quality and 2k at medium; the request sets no quality. */
   "grok-imagine-2": perResult({ "1k": 0.04, "2k": 0.08 }, resolutionOf, with4k({ "2k": 0.08 })),
   /* Not on the console: priced like Qwen Image 3. */
