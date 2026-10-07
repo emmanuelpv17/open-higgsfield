@@ -2,6 +2,8 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { PLATFORM_KEY_COOKIE, decodeCredentials } from "@/generation/credentials";
+import { UPLOAD_LIMITS, uploadKindOf } from "@/generation/upload-limits";
 import {
   DEVICE_COOKIE,
   DEVICE_COOKIE_OPTIONS,
@@ -9,10 +11,16 @@ import {
   resolveDeviceId,
 } from "@/generation/device";
 
-// Anyone who can hit this route can upload. Gate it when auth exists.
+// Uploads land in the deployment owner's store, so a token is only issued to a
+// browser that has saved a platform key, for a file type and size the studio
+// takes. The completion callback comes from Vercel and is not gated.
 
 export async function POST(request: Request): Promise<NextResponse> {
   const incoming = (await request.json()) as HandleUploadBody;
+  if (incoming.type === "blob.generate-client-token") {
+    const refusal = await refuseUpload(incoming.payload.pathname);
+    if (refusal) return NextResponse.json({ error: refusal }, { status: refusal.startsWith("Add") ? 401 : 400 });
+  }
   const device =
     incoming.type === "blob.generate-client-token" ? await readDeviceId() : null;
   const body = device ? withDevicePath(incoming, device.deviceId) : incoming;
@@ -27,16 +35,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       token,
       onBeforeGenerateToken: async (pathname) => {
         console.info("[blob] token", { pathname });
+        const limit = UPLOAD_LIMITS[uploadKindOf(pathname) ?? "image"];
         return {
-          allowedContentTypes: [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/gif",
-            "video/mp4",
-            "audio/wav",
-            "audio/x-wav",
-          ],
+          allowedContentTypes: limit.types,
+          maximumSizeInBytes: limit.maxBytes,
           addRandomSuffix: true,
         };
       },
@@ -52,6 +54,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (device?.minted) return withDeviceCookie(new NextResponse(null, { status: 500 }), device);
     throw error;
   }
+}
+
+async function refuseUpload(pathname: string): Promise<string | null> {
+  const jar = await cookies();
+  if (!decodeCredentials(jar.get(PLATFORM_KEY_COOKIE)?.value)) {
+    return "Add your platform key before uploading files";
+  }
+  if (!uploadKindOf(pathname)) {
+    return "Unsupported file type. Use JPG, PNG, WEBP or GIF images, MP4 or MOV video, WAV or MP3 audio";
+  }
+  return null;
 }
 
 async function readDeviceId() {
