@@ -473,6 +473,9 @@ function mapMarketingStudio(plane: GenerationPlane, path: string, presetForcesHi
   const refs = urls(plane, "reference");
   const preset = presetId(plane.settings.preset);
   const images = preset ? refs.slice(0, 2) : refs;
+  if (preset && !images.length) {
+    throw new Error("Con un estilo elegido, adjunta primero la foto del producto (una foto de modelo como segunda es opcional)");
+  }
   return {
     path,
     body: {
