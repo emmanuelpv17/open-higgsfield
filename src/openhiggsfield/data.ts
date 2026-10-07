@@ -1,3 +1,4 @@
+import { presetName } from "@/generation/presets";
 import type { MediaRole, ModelEntry, Surface } from "@/generation/catalog";
 
 export const SURFACES: readonly Surface[] = ["image", "video"];
@@ -97,6 +98,10 @@ const SETTING_LABELS: Record<string, string> = {
   cameraLens: "Lens",
   cameraAperture: "Aperture",
   colorPalette: "Palette",
+  preset: "Preset",
+  mode: "Mode",
+  renderingSpeed: "Speed",
+  imageWeight: "Image weight",
 };
 
 /* Cinema Studio's creative controls arrive as kebab-case slugs. */
@@ -124,6 +129,8 @@ export function settingPillValue(key: string, value: unknown): string {
   const text = settingValueLabel(key, value);
   if (key === "quality") return `${text.charAt(0).toUpperCase()}${text.slice(1)} quality`;
   if (key === "moderation") return `Moderation ${text.toLowerCase()}`;
+  if (key === "renderingSpeed") return `${text} speed`;
+  if (key === "preset") return text === "None" ? "No preset" : text;
   if (SLUG_KEYS.has(key)) return value === "auto" ? `${settingPillLabel(key)} auto` : text;
   return text;
 }
@@ -135,13 +142,16 @@ export function settingPillLabel(key: string): string {
 /* Values arrive in the platform's own casing. Only the units conventionally
    set in caps are lifted; "720p" and "16:9" are already how they are written. */
 export function settingValueLabel(key: string, value: unknown): string {
+  if (key === "preset") return presetName(value) ?? "None";
   if (typeof value === "boolean") return value ? "On" : "Off";
   if (typeof value === "number") return key === "duration" ? `${value}s` : String(value);
   const text = String(value);
+  if (key === "duration" && /^\d+$/.test(text)) return `${text}s`;
   if (text === "auto") return "Auto";
+  if (key === "renderingSpeed") return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
   if (/^\d+k$/.test(text)) return text.toUpperCase();
   if (key === "outputFormat") return text.toUpperCase();
-  if (SLUG_KEYS.has(key)) return text.replace(/-/g, " ");
+  if (SLUG_KEYS.has(key)) return text.replace(/[-_]/g, " ");
   return text;
 }
 

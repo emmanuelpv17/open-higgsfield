@@ -77,6 +77,9 @@ export function createPlatformClient(options: PlatformClientOptions) {
       if (!requestId) throw new PlatformError(400, { detail: "Missing request id" });
       return mapStatus(await send("GET", `/requests/${encodeURIComponent(requestId)}/status`));
     },
+    async get(path: string): Promise<unknown> {
+      return send("GET", path);
+    },
     /** Only a request still queued can be canceled; the platform refuses one
         that has started rendering. */
     async cancel(requestId: string): Promise<void> {

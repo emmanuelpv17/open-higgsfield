@@ -24,6 +24,7 @@ export const seedance25Edit: ModelEntry = {
   surface: "video",
   label: "Seedance 2.5 Edit",
   roles: { video: 1, reference: 30, audio: 10 },
+  requires: ["video"],
   settings: seedance25Settings,
 };
 
@@ -32,6 +33,7 @@ export const seedance25Extend: ModelEntry = {
   surface: "video",
   label: "Seedance 2.5 Extend",
   roles: { video: 1, reference: 30, audio: 10 },
+  requires: ["video"],
   settings: {
     duration: { type: "range", min: 4, max: 30, default: 5 },
     ...seedance25Settings,

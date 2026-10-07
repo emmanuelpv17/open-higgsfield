@@ -41,9 +41,9 @@ const POPOVER_GAP = 8;
 function popoverWidth(id: string, model: ModelEntry): number {
   if (id === PICKER || id === ASSETS) return 560;
   /* A list of an enum's values is the narrow panel; a slider needs its travel. */
-  if (id.startsWith(SETTING) && model.settings[id.slice(SETTING.length)]?.type === "enum") {
-    return 216;
-  }
+  const fieldType = id.startsWith(SETTING) ? model.settings[id.slice(SETTING.length)]?.type : undefined;
+  if (fieldType === "enum") return 216;
+  if (fieldType === "preset") return 340;
   return 268;
 }
 
