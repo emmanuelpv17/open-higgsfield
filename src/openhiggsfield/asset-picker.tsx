@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import type { MediaItem, MediaRole, ModelEntry } from "@/generation/catalog";
 
-import { ROLE_KINDS, ROLE_LABELS, defaultRole, roleNoun, rolesOf, type AssetKind } from "./data";
+import { ROLE_KINDS, defaultRole, roleLabel, roleNoun, rolesOf, type AssetKind } from "./data";
 import type { RunRecord } from "./history";
 import {
   AssetsIcon,
@@ -186,8 +186,8 @@ export function AssetPicker({
   const uploadTip = uploading
     ? "Uploading…"
     : room > 0
-      ? `Upload a ${roleNoun(role, 1)} from this device`
-      : `Every ${roleNoun(role, 1)} slot is taken — press one off to free it`;
+      ? `Upload a ${roleNoun(role, 1, model)} from this device`
+      : `Every ${roleNoun(role, 1, model)} slot is taken — press one off to free it`;
 
   /* The button states the difference it will make, so a set edited down reads
      as a removal rather than as an "Add" that removes. */
@@ -196,11 +196,11 @@ export function AssetPicker({
   const dropped = current.filter((url) => !picked.has(url)).length;
   const applyLabel =
     added && dropped
-      ? `Replace ${roleNoun(role, Math.max(added, dropped))}`
+      ? `Replace ${roleNoun(role, Math.max(added, dropped), model)}`
       : added
-        ? `Add ${added > 1 ? `${added} ` : ""}${roleNoun(role, added)}`
+        ? `Add ${added > 1 ? `${added} ` : ""}${roleNoun(role, added, model)}`
         : dropped
-          ? `Remove ${dropped > 1 ? `${dropped} ` : ""}${roleNoun(role, dropped)}`
+          ? `Remove ${dropped > 1 ? `${dropped} ` : ""}${roleNoun(role, dropped, model)}`
           : "Done";
 
   return (
@@ -259,7 +259,7 @@ export function AssetPicker({
                 aria-pressed={entry === role}
                 onClick={() => pickRole(entry)}
               >
-                {ROLE_LABELS[entry]}
+                {roleLabel(model, entry)}
                 <span className="ohf-chip-count">
                   {used}/{model.roles[entry] ?? 0}
                 </span>
@@ -323,7 +323,7 @@ export function AssetPicker({
 
       <div className="ohf-assets-foot">
         <span className="ohf-assets-tally">
-          {selected.length} of {max} {roleNoun(role, max)}
+          {selected.length} of {max} {roleNoun(role, max, model)}
         </span>
         {/* Never disabled: with no change left to apply it is simply the way
             out, and the panel always offers one press that ends the task. */}

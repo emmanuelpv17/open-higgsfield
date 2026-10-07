@@ -345,9 +345,9 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
       return;
     }
     const plane = assemblePlane();
-    if (!plane.prompt.text.trim()) return;
-
     const entry = getModel(plane.model);
+    if (!entry.promptOptional && !plane.prompt.text.trim()) return;
+
     const ratio = ratioToCss(
       plane.settings.aspectRatio,
       entry.surface === "image" ? "4 / 3" : "16 / 9",

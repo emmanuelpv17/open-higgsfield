@@ -12,6 +12,9 @@ import {
 } from "./data";
 import { AudioIcon, ClockIcon, FormatIcon, GemIcon } from "./icons";
 import { PresetPicker } from "./preset-picker";
+import { SoulIdPicker } from "./soul-id-picker";
+import { TraitsPicker } from "./traits-picker";
+import { traitCount } from "@/generation/influencer";
 import { Field, OptionList, Slider } from "./ui";
 
 /* One drawn mark per setting the catalog is known to declare. Anything new
@@ -58,6 +61,8 @@ export function SettingPill({
   const settings = useSettings();
   const field = model.settings[settingKey];
   if (!field) return null;
+  /* Likeness means nothing until a Soul ID is chosen. */
+  if (settingKey === "likeness" && !values.character) return null;
 
   const label = settingLabel(settingKey);
   const value = values[settingKey];
@@ -83,6 +88,12 @@ export function SettingPill({
     );
   }
 
+  const picks = field.type === "traits" ? traitCount(value, String(values.tier)) : 0;
+  const pillText =
+    field.type === "traits"
+      ? picks ? `Appearance · ${picks}` : "Random look"
+      : settingPillValue(settingKey, value);
+
   return (
     <button
       type="button"
@@ -90,7 +101,7 @@ export function SettingPill({
       data-tip={label}
       aria-expanded={open}
       aria-haspopup="dialog"
-      aria-label={`${label} — ${settingValueLabel(settingKey, value)}`}
+      aria-label={`${label} — ${field.type === "traits" ? pillText : settingValueLabel(settingKey, value)}`}
       onClick={(event) => onOpen(event.currentTarget)}
     >
       {glyph && (
@@ -98,7 +109,7 @@ export function SettingPill({
           {glyph}
         </span>
       )}
-      <span className="ohf-ctl-value">{settingPillValue(settingKey, value)}</span>
+      <span className="ohf-ctl-value">{pillText}</span>
     </button>
   );
 }
@@ -120,12 +131,40 @@ export function SettingPopover({
 
   const label = settingLabel(settingKey);
 
+  if (field.type === "preset" && field.source.startsWith("soul-id-")) {
+    return (
+      <div className="ohf-popover ohf-popover--setting ohf-popover--presets" role="dialog" aria-label={label}>
+        <Field label={label}>
+          <SoulIdPicker
+            version={field.source.slice("soul-id-".length) as "v1" | "v2" | "cinema"}
+            value={values[settingKey]}
+            onChange={(next) => settings.set(model.id, { [settingKey]: next })}
+          />
+        </Field>
+      </div>
+    );
+  }
+
   if (field.type === "preset") {
     return (
       <div className="ohf-popover ohf-popover--setting ohf-popover--presets" role="dialog" aria-label={label}>
         <Field label={label}>
           <PresetPicker
             source={field.source}
+            value={values[settingKey]}
+            onChange={(next) => settings.set(model.id, { [settingKey]: next })}
+          />
+        </Field>
+      </div>
+    );
+  }
+
+  if (field.type === "traits") {
+    return (
+      <div className="ohf-popover ohf-popover--setting ohf-popover--traits" role="dialog" aria-label={label}>
+        <Field label={label}>
+          <TraitsPicker
+            tier={String(values.tier ?? "normal")}
             value={values[settingKey]}
             onChange={(next) => settings.set(model.id, { [settingKey]: next })}
           />

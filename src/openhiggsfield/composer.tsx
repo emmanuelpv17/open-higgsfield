@@ -44,6 +44,7 @@ function popoverWidth(id: string, model: ModelEntry): number {
   const fieldType = id.startsWith(SETTING) ? model.settings[id.slice(SETTING.length)]?.type : undefined;
   if (fieldType === "enum") return 216;
   if (fieldType === "preset") return 340;
+  if (fieldType === "traits") return 440;
   return 268;
 }
 
@@ -97,7 +98,7 @@ export function Composer({
   const promptRef = useRef<HTMLTextAreaElement>(null);
   /* A run in flight is not a lock: it holds its own tile in the grid, so the
      only thing that can stop a press is having nothing to say. */
-  const disabled = prompt.text.trim().length === 0;
+  const disabled = !model.promptOptional && prompt.text.trim().length === 0;
 
   /* One batch control, two mechanisms. A model that declares its own
      results-per-request gets that setting written; the rest are submitted once
@@ -311,7 +312,7 @@ export function Composer({
                 className="ohf-prompt"
                 rows={1}
                 value={prompt.text}
-                placeholder={PROMPT_PLACEHOLDERS[surface]}
+                placeholder={model.promptOptional ? "Optional — describe the character, or leave empty for a random one" : PROMPT_PLACEHOLDERS[surface]}
                 aria-label="Prompt"
                 onPointerDown={() => setOverlay(null)}
                 onFocus={() => setOverlay(null)}

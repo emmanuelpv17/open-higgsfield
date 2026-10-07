@@ -8,7 +8,7 @@ import { useImageMedia, useVideoMedia } from "@/generation/stores/media";
 import { isBlobUrl } from "@/generation/retention";
 import { uploadMedia } from "@/generation/upload";
 
-import { ROLE_ACCEPT, ROLE_LABELS, ROLE_TAGS, rolesOf } from "./data";
+import { ROLE_ACCEPT, roleLabel, roleTag, rolesOf } from "./data";
 import { AudioIcon, CloseIcon, VideoIcon } from "./icons";
 import { kindOfFile, loadUploads, mergeUploads, rememberUpload, saveUploads, type UploadRecord } from "./uploads";
 
@@ -194,12 +194,12 @@ export function MediaStrip({ model }: { model: ModelEntry }) {
                 }}
               />
             )}
-            <span className="ohf-strip-tag">{ROLE_TAGS[item.role]}</span>
+            <span className="ohf-strip-tag">{roleTag(model, item.role)}</span>
           </span>
           <button
             type="button"
             className="ohf-strip-remove"
-            aria-label={`Remove ${ROLE_LABELS[item.role].toLowerCase()}`}
+            aria-label={`Remove ${roleLabel(model, item.role).toLowerCase()}`}
             onClick={() => media.remove(item.id)}
           >
             <CloseIcon size={10} />
