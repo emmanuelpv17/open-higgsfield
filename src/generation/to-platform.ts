@@ -61,11 +61,11 @@ const MAP: Record<string, Mapper> = {
 };
 
 const REQUIRED_LABEL: Record<MediaRole, string> = {
-  start: "a start frame",
-  end: "an end frame",
-  reference: "at least one reference image",
-  video: "a source video",
-  audio: "an audio clip",
+  start: "una imagen inicial",
+  end: "una imagen final",
+  reference: "al menos una imagen de referencia",
+  video: "un video de origen",
+  audio: "un audio",
 };
 
 export function toPlatform(plane: GenerationPlane): Mapped {
@@ -73,7 +73,7 @@ export function toPlatform(plane: GenerationPlane): Mapped {
   const map = MAP[model.id] ?? (model.paths ? (next) => mapByPaths(next, model.paths!) : undefined);
   if (!map) throw new Error(`No platform map for ${plane.model}`);
   const missing = model.requires?.find((role) => !plane.media[role]?.length);
-  if (missing) throw new Error(`${model.label} needs ${REQUIRED_LABEL[missing]}`);
+  if (missing) throw new Error(`${model.label} necesita ${REQUIRED_LABEL[missing]}`);
   return map(plane);
 }
 

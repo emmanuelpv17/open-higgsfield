@@ -43,7 +43,7 @@ export function ModelPicker({
     <div
       className="ohf-popover ohf-popover--picker"
       role="dialog"
-      aria-label="Models"
+      aria-label="Modelos"
       /* The panel sizes itself from the whole surface catalog, not the matches,
          so its height is the same before and after every keystroke. */
       style={{ "--ohf-picker-rows": catalog.length } as CSSProperties}
@@ -57,8 +57,8 @@ export function ModelPicker({
           ref={inputRef}
           className="ohf-picker-input"
           value={search}
-          placeholder="Search models"
-          aria-label="Search models"
+          placeholder="Buscar modelos"
+          aria-label="Buscar modelos"
           onChange={(event) => {
             setSearch(event.target.value);
             /* A new query is a new list: it starts at its first match rather
@@ -69,8 +69,8 @@ export function ModelPicker({
         <button
           type="button"
           className="ohf-icon-btn ohf-icon-btn--ghost ohf-picker-close"
-          aria-label="Close"
-          title="Close"
+          aria-label="Cerrar"
+          title="Cerrar"
           onClick={onClose}
         >
           <CloseIcon size={13} />
@@ -82,8 +82,8 @@ export function ModelPicker({
             of merchandising the catalog can actually back up. */}
         <div className="ohf-pop-head ohf-picker-group">
           {query
-            ? `${models.length} of ${catalog.length} ${SURFACE_LABELS[surface].toLowerCase()} models`
-            : `${SURFACE_LABELS[surface]} models`}
+            ? `${models.length} de ${catalog.length} modelos de ${SURFACE_LABELS[surface].toLowerCase()}`
+            : `Modelos de ${SURFACE_LABELS[surface].toLowerCase()}`}
         </div>
 
         {models.length === 0 && (
@@ -91,9 +91,9 @@ export function ModelPicker({
             <span className="ohf-picker-empty-ic">
               <SearchIcon size={15} />
             </span>
-            <span className="ohf-picker-empty-title">No model matches “{search.trim()}”</span>
+            <span className="ohf-picker-empty-title">Ningún modelo coincide con “{search.trim()}”</span>
             <span className="ohf-picker-empty-hint">
-              The {SURFACE_LABELS[surface].toLowerCase()} catalog holds {catalog.length} models.
+              Hay {catalog.length} modelos de {SURFACE_LABELS[surface].toLowerCase()} en total.
             </span>
             <button
               type="button"
@@ -103,7 +103,7 @@ export function ModelPicker({
                 inputRef.current?.focus();
               }}
             >
-              Clear search
+              Borrar búsqueda
             </button>
           </div>
         )}

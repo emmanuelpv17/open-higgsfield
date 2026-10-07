@@ -91,7 +91,7 @@ export function SettingPill({
   const picks = field.type === "traits" ? traitCount(value, String(values.tier)) : 0;
   const pillText =
     field.type === "traits"
-      ? picks ? `Appearance · ${picks}` : "Random look"
+      ? picks ? `Apariencia · ${picks}` : "Apariencia al azar"
       : settingPillValue(settingKey, value);
 
   return (

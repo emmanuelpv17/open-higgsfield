@@ -16,11 +16,11 @@ function resolveOrigin(): string {
 export const SITE_URL = resolveOrigin();
 
 export const SITE_NAME = "OpenHiggsfield AI";
-export const SITE_DESCRIPTOR = "Open source AI studio";
+export const SITE_DESCRIPTOR = "Estudio de IA de código abierto";
 export const SITE_TITLE = `${SITE_NAME} — ${SITE_DESCRIPTOR}`;
 
 export const SITE_DESCRIPTION =
-  "A studio for image and video generation — one prompt bar, each model’s own settings, and every finished run in one gallery.";
+  "Un estudio para generar imágenes y videos con IA — escribe, elige un modelo y todo lo que generes queda en tu galería.";
 
 /** Near-black studio ground; also the installed-app and browser-chrome color. */
 export const STUDIO_BG = "#0a0a0b";

@@ -104,7 +104,7 @@ function sweep(): void {
   for (const [requestId, waiter] of [...waiting]) {
     if (now <= waiter.deadline) continue;
     waiting.delete(requestId);
-    waiter.reject(new Error("timed out waiting for the platform"));
+    waiter.reject(new Error("Higgsfield tardó demasiado en responder"));
   }
 }
 

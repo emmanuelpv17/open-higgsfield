@@ -5,7 +5,7 @@ import type { MediaRole, ModelEntry, Surface } from "@/generation/catalog";
 export const SURFACES: readonly Surface[] = ["image", "video"];
 
 export const SURFACE_LABELS: Record<Surface, string> = {
-  image: "Image",
+  image: "Imagen",
   video: "Video",
 };
 
@@ -20,13 +20,13 @@ export const VIEWS: readonly GalleryView[] = ["image", "video", "assets", "favor
 
 export const VIEW_LABELS: Record<GalleryView, string> = {
   ...SURFACE_LABELS,
-  assets: "Assets",
-  favorites: "Favorites",
+  assets: "Archivos",
+  favorites: "Favoritos",
 };
 
 export const PROMPT_PLACEHOLDERS: Record<Surface, string> = {
-  image: "Describe the image — subject, style, light, lens…",
-  video: "Describe the shot — subject, camera move, light, pacing…",
+  image: "Describe la imagen — sujeto, estilo, luz, lente…",
+  video: "Describe la escena — sujeto, movimiento de cámara, luz, ritmo…",
 };
 
 /* The pool the empty state draws from. Each line is a whole prompt — subject,
@@ -34,32 +34,32 @@ export const PROMPT_PLACEHOLDERS: Record<Surface, string> = {
    Generate on rather than a fragment to finish. */
 export const SAMPLES: Record<Surface, string[]> = {
   image: [
-    "Portrait of a beekeeper in a sunlit orchard, medium format film, shallow depth of field",
-    "Isometric cutaway of a tiny recording studio, warm tungsten light, matte clay render",
-    "Editorial still life: brutalist concrete vases with wild poppies, hard noon shadows",
-    "Rain-slick alley at midnight, sodium lamps, reflections in every puddle, 35mm",
-    "Studio portrait of an elderly luthier holding a half-built violin, single softbox, black backdrop",
-    "Aerial top-down of salt evaporation ponds, pink and ochre geometry, midday clarity",
-    "Cutaway illustration of a mechanical watch movement, blueprint lines on warm paper",
-    "Overgrown modernist house reclaimed by ferns, overcast light, large format detail",
-    "Matte ceramic espresso cup on wet slate, rim light, steam caught mid-curl",
-    "1970s ski lodge interior, wood paneling and orange wool, low winter sun through glass",
-    "Hands kneading dough on floured marble, window light, muted palette, close crop",
-    "Desert observatory at blue hour, long exposure, star trails over a white dome",
+    "Retrato de una apicultora en un huerto soleado, película de formato medio, poca profundidad de campo",
+    "Corte isométrico de un pequeño estudio de grabación, luz cálida de tungsteno, render de arcilla mate",
+    "Bodegón editorial: jarrones de concreto brutalista con amapolas silvestres, sombras duras de mediodía",
+    "Callejón mojado por la lluvia a medianoche, faroles de sodio, reflejos en cada charco, 35mm",
+    "Retrato de estudio de un luthier anciano sosteniendo un violín a medio hacer, una sola luz suave, fondo negro",
+    "Vista aérea cenital de salinas, geometría rosa y ocre, claridad de mediodía",
+    "Ilustración en corte del mecanismo de un reloj, líneas de plano sobre papel cálido",
+    "Casa modernista cubierta de helechos, luz nublada, detalle de gran formato",
+    "Taza de espresso de cerámica mate sobre pizarra mojada, luz de contorno, vapor en el aire",
+    "Interior de un refugio de esquí de los 70, paneles de madera y lana naranja, sol bajo de invierno",
+    "Manos amasando sobre mármol enharinado, luz de ventana, paleta apagada, encuadre cerrado",
+    "Observatorio en el desierto a la hora azul, larga exposición, estelas de estrellas sobre una cúpula blanca",
   ],
   video: [
-    "Slow aerial dolly over fog-covered pine forest at dawn, volumetric light through the canopy",
-    "Macro shot of ink blooming in water, backlit, ultra slow motion, black backdrop",
-    "Handheld tracking shot through a neon market at night, rain on lenses, shallow focus",
-    "Locked-off shot of a diner at 3am, one customer, rain outside, sign flickering",
-    "Slow push-in on a sculptor's hands shaping wet clay, north-facing window light",
-    "Drone orbit around a lighthouse in heavy swell, grey sea, spray hitting the lens",
-    "Timelapse of cloud shadows sweeping a canyon rim, golden hour into dusk",
-    "Steadicam walk through an empty greenhouse, dust in shafts of light, slow reveal",
-    "Whip pan from a spinning record to a dancer mid-turn, tungsten glow, heavy motion blur",
-    "Underwater shot of a swimmer breaking the surface, bubbles, sunlight refracting",
-    "Static wide of a train crossing a viaduct at dusk, lit windows, long lens compression",
-    "Slow tilt down a glass tower facade to a busy crosswalk, overcast city light",
+    "Dolly aéreo lento sobre un bosque de pinos con niebla al amanecer, rayos de luz entre las copas",
+    "Toma macro de tinta abriéndose en agua, contraluz, cámara ultra lenta, fondo negro",
+    "Travelling en mano por un mercado de neón de noche, lluvia en el lente, foco corto",
+    "Plano fijo de una cafetería a las 3am, un solo cliente, lluvia afuera, letrero parpadeando",
+    "Acercamiento lento a las manos de un escultor moldeando arcilla húmeda, luz de ventana",
+    "Dron orbitando un faro con oleaje fuerte, mar gris, espuma golpeando el lente",
+    "Timelapse de sombras de nubes cruzando un cañón, de la hora dorada al anochecer",
+    "Steadicam caminando por un invernadero vacío, polvo en haces de luz, revelación lenta",
+    "Barrido rápido de un disco girando a una bailarina en pleno giro, luz cálida, mucho desenfoque de movimiento",
+    "Toma submarina de una nadadora saliendo a la superficie, burbujas, luz del sol refractada",
+    "Plano general fijo de un tren cruzando un viaducto al atardecer, ventanas iluminadas, teleobjetivo",
+    "Paneo vertical lento por la fachada de vidrio de una torre hasta un cruce peatonal concurrido",
   ],
 };
 
@@ -76,50 +76,72 @@ export function pickSamples(surface: Surface, count = 3): string[] {
 }
 
 const SETTING_LABELS: Record<string, string> = {
-  aspectRatio: "Aspect ratio",
-  resolution: "Resolution",
-  outputFormat: "Format",
-  duration: "Duration",
-  generateAudio: "Generate audio",
-  batchSize: "Batch size",
-  enhancePrompt: "Enhance prompt",
-  thinking: "Thinking",
-  numImages: "Images",
-  sound: "Sound",
-  cfgScale: "CFG",
-  multiShots: "Multi-shot",
-  keepOriginalSound: "Keep original sound",
-  characterOrientation: "Orientation",
-  genre: "Genre",
-  era: "Era",
-  pacing: "Pacing",
-  light: "Lighting",
-  cameraMovement: "Camera move",
-  cameraModel: "Camera",
-  cameraLens: "Lens",
-  cameraAperture: "Aperture",
-  colorPalette: "Palette",
-  preset: "Preset",
-  mode: "Mode",
-  renderingSpeed: "Speed",
-  imageWeight: "Image weight",
-  tier: "Character",
+  aspectRatio: "Formato",
+  resolution: "Resolución",
+  outputFormat: "Tipo de archivo",
+  duration: "Duración",
+  generateAudio: "Generar audio",
+  batchSize: "Cantidad",
+  enhancePrompt: "Mejorar texto",
+  thinking: "Razonamiento",
+  numImages: "Imágenes",
+  sound: "Sonido",
+  cfgScale: "Fidelidad al texto",
+  multiShots: "Varias tomas",
+  keepOriginalSound: "Mantener sonido original",
+  characterOrientation: "Orientación",
+  genre: "Género",
+  era: "Época",
+  pacing: "Ritmo",
+  light: "Iluminación",
+  cameraMovement: "Movimiento de cámara",
+  cameraModel: "Cámara",
+  cameraLens: "Lente",
+  cameraAperture: "Apertura",
+  colorPalette: "Paleta",
+  preset: "Estilo",
+  mode: "Modo",
+  quality: "Calidad",
+  moderation: "Moderación",
+  renderingSpeed: "Velocidad",
+  imageWeight: "Peso de la imagen",
+  tier: "Tipo de personaje",
   character: "Soul ID",
-  likeness: "Likeness",
-  traits: "Appearance",
+  likeness: "Parecido",
+  traits: "Apariencia",
+  seed: "Semilla",
 };
 
 /* AI Influencer's character types, named the way its playground names them. */
 const TIER_LABELS: Record<string, string> = {
-  normal: "Average",
-  freak: "Bold",
-  total: "Extreme",
-  insects: "Insect",
-  frogs: "Frog",
-  cats: "Cat",
-  dogs: "Dog",
-  capybaras: "Rodent",
-  birds: "Bird",
+  normal: "Normal",
+  freak: "Llamativo",
+  total: "Extremo",
+  insects: "Insecto",
+  frogs: "Rana",
+  cats: "Gato",
+  dogs: "Perro",
+  capybaras: "Roedor",
+  birds: "Pájaro",
+};
+
+/* Enum values the platform writes in English, shown in Spanish. Sizes, ratios
+   and codes stay as written. */
+const VALUE_LABELS: Record<string, string> = {
+  low: "baja",
+  medium: "media",
+  high: "alta",
+  max: "máxima",
+  std: "Estándar",
+  pro: "Pro",
+  turbo: "Turbo",
+  default: "Normal",
+  quality: "Calidad",
+  adaptive: "Adaptativo",
+  jpg: "JPG",
+  png: "PNG",
+  webp: "WEBP",
+  mp4: "MP4",
 };
 
 /* Cinema Studio's creative controls arrive as kebab-case slugs. */
@@ -132,6 +154,8 @@ const SLUG_KEYS = new Set([
    a crowded rail. Only keys that read badly at pill length appear here. */
 const SETTING_PILL_LABELS: Record<string, string> = {
   generateAudio: "Audio",
+  keepOriginalSound: "Sonido original",
+  cameraMovement: "Cámara",
 };
 
 export function settingLabel(key: string): string {
@@ -145,13 +169,15 @@ export function settingLabel(key: string): string {
    its setting named to be told apart from its neighbours. */
 export function settingPillValue(key: string, value: unknown): string {
   const text = settingValueLabel(key, value);
-  if (key === "quality") return `${text.charAt(0).toUpperCase()}${text.slice(1)} quality`;
-  if (key === "moderation") return `Moderation ${text.toLowerCase()}`;
-  if (key === "renderingSpeed") return `${text} speed`;
-  if (key === "preset") return text === "None" ? "No preset" : text;
-  if (key === "character") return text === "None" ? "No Soul ID" : text;
-  if (key === "likeness") return `Likeness ${text}`;
-  if (SLUG_KEYS.has(key)) return value === "auto" ? `${settingPillLabel(key)} auto` : text;
+  if (key === "quality") return `Calidad ${text.toLowerCase()}`;
+  if (key === "moderation") return `Moderación ${text.toLowerCase()}`;
+  if (key === "renderingSpeed") return `Velocidad ${text.toLowerCase()}`;
+  if (key === "preset") return text === "Ninguno" ? "Sin estilo" : text;
+  if (key === "character") return text === "Ninguno" ? "Sin Soul ID" : text;
+  if (key === "likeness") return `Parecido ${text}`;
+  if (key === "characterOrientation") return `Orientación: ${text.toLowerCase()}`;
+  if (key === "mode") return `Modo ${text}`;
+  if (SLUG_KEYS.has(key)) return value === "auto" ? `${settingPillLabel(key)}: auto` : text;
   return text;
 }
 
@@ -162,20 +188,24 @@ export function settingPillLabel(key: string): string {
 /* Values arrive in the platform's own casing. Only the units conventionally
    set in caps are lifted; "720p" and "16:9" are already how they are written. */
 export function settingValueLabel(key: string, value: unknown): string {
-  if (key === "preset") return presetName(value) ?? "None";
-  if (key === "character") return presetName(value) ?? "None";
+  if (key === "preset") return presetName(value) ?? "Ninguno";
+  if (key === "character") return presetName(value) ?? "Ninguno";
   if (key === "likeness" && typeof value === "number") return `${Math.round(value * 100)}%`;
   if (key === "traits") {
     const picks = Object.values(decodeTraits(value)?.selection ?? {}).flat();
-    return picks.length ? picks.map((pick) => pick.replace(/^[a-z]{1,4}_/, "").replace(/_/g, " ")).join(", ") : "Random";
+    return picks.length ? picks.map((pick) => pick.replace(/^[a-z]{1,4}_/, "").replace(/_/g, " ")).join(", ") : "Al azar";
   }
-  if (typeof value === "boolean") return value ? "On" : "Off";
+  if (typeof value === "boolean") return value ? "Sí" : "No";
   if (typeof value === "number") return key === "duration" ? `${value}s` : String(value);
   const text = String(value);
   if (key === "duration" && /^\d+$/.test(text)) return `${text}s`;
   if (text === "auto") return "Auto";
   if (key === "tier") return TIER_LABELS[text] ?? text;
-  if (key === "renderingSpeed") return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+  if (key === "characterOrientation") return text === "video" ? "Como el video" : "Como la imagen";
+  if (VALUE_LABELS[text] && !SLUG_KEYS.has(key)) {
+    const word = VALUE_LABELS[text]!;
+    return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+  }
   if (/^\d+k$/.test(text)) return text.toUpperCase();
   if (key === "outputFormat") return text.toUpperCase();
   if (SLUG_KEYS.has(key)) return text.replace(/[-_]/g, " ");
@@ -183,17 +213,17 @@ export function settingValueLabel(key: string, value: unknown): string {
 }
 
 export const ROLE_LABELS: Record<MediaRole, string> = {
-  start: "Start frame",
-  end: "End frame",
-  reference: "Reference",
+  start: "Imagen inicial",
+  end: "Imagen final",
+  reference: "Referencia",
   video: "Video",
   audio: "Audio",
 };
 
 /* Slate tags for the attachment tiles, where the full label will not fit. */
 export const ROLE_TAGS: Record<MediaRole, string> = {
-  start: "START",
-  end: "END",
+  start: "INICIO",
+  end: "FINAL",
   reference: "REF",
   video: "VIDEO",
   audio: "AUDIO",
@@ -214,16 +244,24 @@ export const ROLE_KINDS: Record<MediaRole, AssetKind> = {
 /* The picker's confirm button names what it attaches — "Add 2 references",
    "Add start frame" — so each role carries its plural rather than taking an s. */
 const ROLE_PLURALS: Record<MediaRole, string> = {
-  start: "start frames",
-  end: "end frames",
-  reference: "references",
-  video: "clips",
-  audio: "audio tracks",
+  start: "imágenes iniciales",
+  end: "imágenes finales",
+  reference: "referencias",
+  video: "videos",
+  audio: "audios",
 };
+
+/* Spanish plural of a slot name: the head noun takes the ending ("foto de
+   identidad" → "fotos de identidad"). */
+function pluralize(label: string): string {
+  const [head, ...rest] = label.split(" ");
+  const plural = /[aeiouáéó]$/i.test(head!) ? `${head}s` : `${head}es`;
+  return [plural, ...rest].join(" ");
+}
 
 export function roleNoun(role: MediaRole, count: number, model?: ModelEntry): string {
   const own = model?.roleLabels?.[role];
-  if (own) return count === 1 ? own.toLowerCase() : `${own.toLowerCase()}s`;
+  if (own) return count === 1 ? own.toLowerCase() : pluralize(own.toLowerCase());
   return count === 1 ? ROLE_LABELS[role].toLowerCase() : ROLE_PLURALS[role];
 }
 
@@ -234,7 +272,7 @@ export function roleLabel(model: ModelEntry, role: MediaRole): string {
 
 export function roleTag(model: ModelEntry, role: MediaRole): string {
   const own = model.roleLabels?.[role];
-  return own ? own.split(" ").pop()!.toUpperCase() : ROLE_TAGS[role];
+  return own ? own.split(" ")[0]!.toUpperCase() : ROLE_TAGS[role];
 }
 
 /* Mirrors the allow-list in src/app/api/blob/route.ts. */
@@ -278,27 +316,34 @@ export function ratioToCss(value: unknown, fallback: string): string {
 /* Two roles share one word — a start and an end frame are both frames — so the
    phrases dedupe before they are listed. */
 const ROLE_PHRASES: Record<MediaRole, string> = {
-  start: "frames",
-  end: "frames",
-  reference: "references",
-  video: "clips",
+  start: "imágenes de inicio/fin",
+  end: "imágenes de inicio/fin",
+  reference: "referencias",
+  video: "videos",
   audio: "audio",
 };
 
 function joinPhrases(parts: string[]): string {
   if (parts.length < 2) return parts[0] ?? "";
-  return `${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}`;
+  return `${parts.slice(0, -1).join(", ")} o ${parts[parts.length - 1]}`;
 }
 
 /** The line under a model's name in the picker, derived from the entry itself:
     what it makes, what it takes, where its allow-lists top out. The catalog
     stays the only place a model's truth is written down. */
 export function describeModel(model: ModelEntry): string {
-  const noun = model.surface === "image" ? "Images" : "Video";
-  const inputs = [...new Set(rolesOf(model).map((role) => ROLE_PHRASES[role]))];
+  const noun = model.surface === "image" ? "Imágenes" : "Video";
+  const inputs = [
+    ...new Set(
+      rolesOf(model).map((role) => {
+        const own = model.roleLabels?.[role];
+        return own ? pluralize(own.toLowerCase()) : ROLE_PHRASES[role];
+      }),
+    ),
+  ];
   const source = inputs.length
-    ? `${noun} from a prompt, ${joinPhrases(inputs)}`
-    : `${noun} from a prompt`;
+    ? `${noun} desde texto, ${joinPhrases(inputs)}`
+    : `${noun} desde texto`;
 
   const limits: string[] = [];
   const resolution = model.settings.resolution;
@@ -306,7 +351,7 @@ export function describeModel(model: ModelEntry): string {
      last value it lists. */
   if (resolution?.type === "enum" && resolution.values.length > 0) {
     const top = resolution.values[resolution.values.length - 1]!;
-    limits.push(`to ${settingValueLabel("resolution", top)}`);
+    limits.push(`hasta ${settingValueLabel("resolution", top)}`);
   }
   const duration = model.settings.duration;
   if (duration?.type === "range") limits.push(`${duration.min}–${duration.max}s`);

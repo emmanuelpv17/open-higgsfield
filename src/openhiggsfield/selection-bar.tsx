@@ -45,15 +45,15 @@ export function SelectionBar({
   const count = shown.length;
   const saveable = shown.filter((record) => record.urls[0]).length;
   const allKept = shown.every((record) => record.favorite === true);
-  const noun = count === 1 ? "run" : "runs";
+  const noun = count === 1 ? "resultado" : "resultados";
 
   const downloadLabel = saving
-    ? `Saving ${saving.done} of ${saving.total}`
+    ? `Guardando ${saving.done} de ${saving.total}`
     : saveable === 0
-      ? "Nothing here to download"
+      ? "No hay nada para descargar"
       : saveable < count
-        ? `Download ${saveable} of ${count}`
-        : "Download";
+        ? `Descargar ${saveable} de ${count}`
+        : "Descargar";
 
   return (
     /* A labelled group rather than role="toolbar": the toolbar pattern promises
@@ -62,7 +62,7 @@ export function SelectionBar({
     <div
       className="ohf-selbar"
       role="group"
-      aria-label="Bulk actions"
+      aria-label="Acciones en grupo"
       data-on={on}
       inert={!on}
     >
@@ -97,7 +97,7 @@ export function SelectionBar({
           <span className="ohf-selbar-n" key={count}>
             {count}
           </span>{" "}
-          selected
+          {count === 1 ? "seleccionado" : "seleccionados"}
         </span>
       </p>
 
@@ -113,7 +113,7 @@ export function SelectionBar({
         >
           {saving ? <span className="ohf-spinner" aria-hidden /> : <DownloadIcon size={15} />}
           <span className="ohf-selact-label">
-            {saving ? `${saving.done}/${saving.total}` : "Download"}
+            {saving ? `${saving.done}/${saving.total}` : "Descargar"}
           </span>
         </button>
       </span>
@@ -122,11 +122,11 @@ export function SelectionBar({
         type="button"
         className="ohf-selact ohf-tip"
         data-tip={
-          allKept ? `Remove ${count} ${noun} from favorites` : `Save ${count} ${noun} to favorites`
+          allKept ? `Quitar ${count} ${noun} de favoritos` : `Guardar ${count} ${noun} en favoritos`
         }
         data-on={allKept}
         aria-pressed={allKept}
-        aria-label={allKept ? "Remove from favorites" : "Save to favorites"}
+        aria-label={allKept ? "Quitar de favoritos" : "Guardar en favoritos"}
         onClick={onFavorite}
       >
         <HeartIcon size={16} filled={allKept} />
@@ -135,8 +135,8 @@ export function SelectionBar({
       <button
         type="button"
         className="ohf-selact ohf-selact--danger ohf-tip"
-        data-tip={`Delete ${count} ${noun}`}
-        aria-label={`Delete ${count} ${noun}`}
+        data-tip={`Eliminar ${count} ${noun}`}
+        aria-label={`Eliminar ${count} ${noun}`}
         onClick={onDelete}
       >
         <TrashIcon size={15} />
@@ -147,8 +147,8 @@ export function SelectionBar({
       <button
         type="button"
         className="ohf-selact ohf-selact--quiet ohf-tip ohf-tip--end"
-        data-tip="Clear selection · Esc"
-        aria-label="Clear selection"
+        data-tip="Quitar selección · Esc"
+        aria-label="Quitar selección"
         onClick={onClose}
       >
         <CloseIcon size={14} />

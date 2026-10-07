@@ -12,11 +12,11 @@ import { encodePreset, presetId } from "@/generation/presets";
 import { uploadMedia } from "@/generation/upload";
 
 const STATUS_LABELS: Record<string, string> = {
-  not_ready: "Waiting",
-  queued: "Queued",
-  in_progress: "Training",
-  completed: "Ready",
-  failed: "Failed",
+  not_ready: "En espera",
+  queued: "En cola",
+  in_progress: "Entrenando",
+  completed: "Listo",
+  failed: "Falló",
 };
 const SETTLED = new Set(["completed", "failed"]);
 
@@ -44,7 +44,7 @@ export function SoulIdPicker({
   async function refresh() {
     const result = await listSoulCharacters(version);
     if (!result.ok) {
-      setError(result.error.includes("platform key") ? "Add your platform key to load your characters." : result.error);
+      setError(result.error.includes("clave API") ? "Agrega tu clave API para ver tus personajes." : result.error);
       return;
     }
     setError(null);
@@ -70,10 +70,10 @@ export function SoulIdPicker({
     try {
       const urls: string[] = [];
       for (const [index, file] of files.entries()) {
-        setBusy(`Uploading photo ${index + 1} of ${files.length}…`);
+        setBusy(`Subiendo foto ${index + 1} de ${files.length}…`);
         urls.push((await uploadMedia(file)).url);
       }
-      setBusy("Starting training…");
+      setBusy("Iniciando entrenamiento…");
       const result = await createSoulCharacter({ name, version, urls });
       if (!result.ok) throw new Error(result.error);
       setItems((prev) => [result.value, ...(prev ?? [])]);
@@ -88,7 +88,7 @@ export function SoulIdPicker({
   }
 
   async function remove(item: SoulCharacter) {
-    if (!window.confirm(`Delete “${item.name}”? This cannot be undone.`)) return;
+    if (!window.confirm(`¿Eliminar “${item.name}”? No se puede deshacer.`)) return;
     const result = await deleteSoulCharacter(item.id);
     if (!result.ok) return setError(result.error);
     if (item.id === selected) onChange("");
@@ -102,8 +102,8 @@ export function SoulIdPicker({
           className="ohf-presets-search"
           value={name}
           maxLength={100}
-          placeholder="Character name"
-          aria-label="Character name"
+          placeholder="Nombre del personaje"
+          aria-label="Nombre del personaje"
           onChange={(event) => setName(event.target.value)}
         />
         <input
@@ -116,18 +116,18 @@ export function SoulIdPicker({
         />
         <button type="button" className="ohf-opt" onClick={() => fileRef.current?.click()}>
           <span className="ohf-opt-label">
-            {files.length ? `${files.length} photo${files.length > 1 ? "s" : ""} chosen — change` : "Choose photos"}
+            {files.length ? `${files.length} foto${files.length > 1 ? "s" : ""} elegida${files.length > 1 ? "s" : ""} — cambiar` : "Elegir fotos"}
           </span>
         </button>
         <p className="ohf-presets-note">
-          Use 10–20 clear photos of the same person: different angles, expressions and light. Training is
-          billed by Higgsfield at about $2.50 and takes a few minutes.
+          Usa 10–20 fotos claras de la misma persona: distintos ángulos, expresiones y luz. Higgsfield cobra
+          unos $2.50 por entrenarlo y tarda unos minutos.
         </p>
         {error && <p className="ohf-presets-note ohf-soulid-error">{error}</p>}
         {busy && <p className="ohf-presets-note">{busy}</p>}
         <div className="ohf-soulid-actions">
           <button type="button" className="ohf-btn-quiet" disabled={busy !== null} onClick={() => setCreating(false)}>
-            Cancel
+            Cancelar
           </button>
           <button
             type="button"
@@ -135,7 +135,7 @@ export function SoulIdPicker({
             disabled={busy !== null || !name.trim() || !files.length}
             onClick={() => void create()}
           >
-            Train ≈ $2.50
+            Entrenar ≈ $2.50
           </button>
         </div>
       </div>
@@ -146,7 +146,7 @@ export function SoulIdPicker({
     <div className="ohf-presets ohf-soulid">
       <div className="ohf-opts ohf-scroll ohf-presets-list" role="group">
         <button type="button" className="ohf-opt" aria-pressed={!selected} onClick={() => onChange("")}>
-          <span className="ohf-opt-label">No Soul ID</span>
+          <span className="ohf-opt-label">Sin Soul ID</span>
         </button>
         {(items ?? []).map((item) => {
           const ready = item.status === "completed";
@@ -169,8 +169,8 @@ export function SoulIdPicker({
               <button
                 type="button"
                 className="ohf-soulid-delete"
-                aria-label={`Delete ${item.name}`}
-                title="Delete"
+                aria-label={`Eliminar ${item.name}`}
+                title="Eliminar"
                 onClick={() => void remove(item)}
               >
                 ×
@@ -179,14 +179,14 @@ export function SoulIdPicker({
           );
         })}
         {error && <p className="ohf-presets-note">{error}</p>}
-        {!error && !items && <p className="ohf-presets-note">Loading your characters…</p>}
+        {!error && !items && <p className="ohf-presets-note">Cargando tus personajes…</p>}
         {!error && items?.length === 0 && (
-          <p className="ohf-presets-note">No characters yet. Train one from photos of a person.</p>
+          <p className="ohf-presets-note">Todavía no tienes personajes. Entrena uno con fotos de una persona.</p>
         )}
-        {training && <p className="ohf-presets-note">Training in progress — this list refreshes by itself.</p>}
+        {training && <p className="ohf-presets-note">Entrenando — esta lista se actualiza sola.</p>}
       </div>
       <button type="button" className="ohf-opt ohf-presets-more" onClick={() => setCreating(true)}>
-        + New character
+        + Nuevo personaje
       </button>
     </div>
   );

@@ -116,8 +116,8 @@ export function useMediaTray(
     } catch (caught) {
       onError(
         caught instanceof Error
-          ? `Upload failed — ${caught.message}.`
-          : "Upload failed. Retry, or drop the file and generate from the prompt alone.",
+          ? `No se pudo subir — ${caught.message}.`
+          : "No se pudo subir. Inténtalo de nuevo o genera solo con el texto.",
       );
     } finally {
       setUploading(false);
@@ -199,7 +199,7 @@ export function MediaStrip({ model }: { model: ModelEntry }) {
           <button
             type="button"
             className="ohf-strip-remove"
-            aria-label={`Remove ${roleLabel(model, item.role).toLowerCase()}`}
+            aria-label={`Quitar ${roleLabel(model, item.role).toLowerCase()}`}
             onClick={() => media.remove(item.id)}
           >
             <CloseIcon size={10} />

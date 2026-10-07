@@ -157,8 +157,21 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+/* The platform answers in English; the common refusals are said in Spanish,
+   anything else keeps its own detail. */
+const STATUS_MESSAGES: Record<number, string> = {
+  401: "Clave API inválida o vencida",
+  402: "Saldo insuficiente en tu cuenta de Higgsfield",
+  403: "Tu clave API no tiene acceso a este modelo",
+  429: "Demasiadas solicitudes seguidas; espera un momento",
+};
+
 function messageFromBody(status: number, body: unknown): string {
+  if (STATUS_MESSAGES[status]) return STATUS_MESSAGES[status]!;
   const detail = asRecord(body).detail;
-  if (typeof detail === "string" && detail) return detail;
-  return `Platform request failed (${status})`;
+  if (typeof detail === "string" && detail) {
+    if (/insufficient|not enough (credits|balance)/i.test(detail)) return "Saldo insuficiente en tu cuenta de Higgsfield";
+    return detail;
+  }
+  return `Higgsfield rechazó la solicitud (${status})`;
 }
