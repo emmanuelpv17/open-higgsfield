@@ -1,4 +1,5 @@
 import { getModel } from "./catalog";
+import { CINEMA_CONTROLS } from "./catalog/cinema-studio";
 import type { GenerationPlane, PlatformPaths } from "./catalog/types";
 
 type Mapped = { path: string; body: Record<string, unknown> };
@@ -7,6 +8,13 @@ type Mapper = (plane: GenerationPlane) => Mapped;
 const MAP: Record<string, Mapper> = {
   "soul-cinema": (plane) => mapSoul(plane, "higgsfield-ai/soul/cinema"),
   "soul-2": (plane) => mapSoul(plane, "higgsfield-ai/soul/v2/standard"),
+  "soul-standard": (plane) => mapSoul(plane, "higgsfield-ai/soul/standard"),
+  "cinema-studio-4": mapCinemaStudio,
+  "kling-2.6-motion-std": (plane) => mapKlingMotion(plane, "kling-video/motion-control/std"),
+  "kling-2.6-motion-pro": (plane) => mapKlingMotion(plane, "kling-video/motion-control/pro"),
+  "recraft-4.1": (plane) => mapRecraft(plane, "recraft/v4.1/text-to-image", "recraft/v4.1/pro/text-to-image"),
+  "recraft-4.1-utility": (plane) =>
+    mapRecraft(plane, "recraft/v4.1/utility/text-to-image", "recraft/v4.1/utility/pro/text-to-image"),
   "kling-3-turbo": mapKlingTurbo,
   "kling-3-std": (plane) => mapKling3(plane, "kling-video/v3.0/std"),
   "kling-3-pro": (plane) => mapKling3(plane, "kling-video/v3.0/pro"),
@@ -94,6 +102,46 @@ function mapKlingMotion(plane: GenerationPlane, path: string): Mapped {
       ...(video ? { video_url: video } : {}),
       keep_original_sound: plane.settings.keepOriginalSound ? "yes" : "no",
       character_orientation: plane.settings.characterOrientation,
+    },
+  };
+}
+
+function mapCinemaStudio(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference");
+  const videos = urls(plane, "video");
+  const audios = urls(plane, "audio");
+  const controls = Object.fromEntries(
+    Object.entries(CINEMA_CONTROLS).flatMap(([key, field]) => {
+      const value = plane.settings[key];
+      return value && value !== "auto" ? [[field, value]] : [];
+    }),
+  );
+  return {
+    path: "higgsfield/cinema-studio/4.0",
+    body: {
+      prompt: plane.prompt.text,
+      aspect_ratio: plane.settings.aspectRatio,
+      resolution: plane.settings.resolution,
+      duration: plane.settings.duration,
+      generate_audio: plane.settings.generateAudio,
+      ...controls,
+      ...(refs.length ? { image_urls: refs } : {}),
+      ...(videos.length ? { video_urls: videos } : {}),
+      ...(audios.length ? { audio_urls: audios } : {}),
+    },
+  };
+}
+
+/** 1k goes to the base endpoint, 2k to its Pro sibling. */
+function mapRecraft(plane: GenerationPlane, base: string, pro: string): Mapped {
+  const resolution = plane.settings.resolution === "2k" ? "2k" : "1k";
+  return {
+    path: resolution === "2k" ? pro : base,
+    body: {
+      prompt: plane.prompt.text,
+      aspect_ratio: plane.settings.aspectRatio,
+      resolution,
+      output_format: plane.settings.outputFormat,
     },
   };
 }
