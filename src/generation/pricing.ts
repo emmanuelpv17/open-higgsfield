@@ -96,6 +96,12 @@ const byResolution =
   (settings: Settings): number | undefined =>
     table[String(settings.resolution)];
 
+/* Kling's O-series pages publish std and pro rates; 4K is priced as Kling 3.0 4K. */
+const byMode =
+  (table: Record<string, number>) =>
+  (settings: Settings): number | undefined =>
+    table[String(settings.mode)];
+
 /* Seedance 2.0 is billed per 1,000 video tokens, seconds × width × height ×
    24 / 1024. Rates below are that per second at 16:9. */
 const seedance2Rate = (width: number, height: number, per1k: number) =>
@@ -162,8 +168,12 @@ const PRICING: Record<string, Pricer> = {
      below); 0.6x that with a video reference, which this does not discount. */
   "cinema-studio-4": perSecond(byResolution({ "480p": 0.2056, "720p": 0.4622 })),
   "kling-2.5": perSecond(() => 0.042),
-  "kling-o3": perSecond(() => 0.084),
-  "kling-o1": perSecond(() => [0.084, 0.112]),
+  "kling-2.5-pro": perSecond(() => 0.07),
+  /* Image reference and first/last frame; a video reference bills 0.126–0.168/s. */
+  "kling-o3": perSecond(byMode({ std: 0.084, pro: 0.112, "4k": 0.42 })),
+  "kling-o1": perSecond(byMode({ std: 0.084, pro: 0.112 })),
+  "kling-o3-edit": perSourceSecond(() => 0.126),
+  "kling-o1-edit": perSourceSecond(() => 0.126),
   "wan-3": perSecond(byResolution({ "720p": 0.1, "1080p": 0.2 })),
   "wan-3-prime": perSecond(byResolution({ "720p": 0.14, "1080p": 0.28 })),
   "wan-2.7": perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 })),

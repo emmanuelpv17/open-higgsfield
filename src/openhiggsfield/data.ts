@@ -99,6 +99,7 @@ const SETTING_LABELS: Record<string, string> = {
   cameraAperture: "Aperture",
   colorPalette: "Palette",
   preset: "Preset",
+  mode: "Mode",
 };
 
 /* Cinema Studio's creative controls arrive as kebab-case slugs. */
@@ -142,6 +143,7 @@ export function settingValueLabel(key: string, value: unknown): string {
   if (typeof value === "boolean") return value ? "On" : "Off";
   if (typeof value === "number") return key === "duration" ? `${value}s` : String(value);
   const text = String(value);
+  if (key === "duration" && /^\d+$/.test(text)) return `${text}s`;
   if (text === "auto") return "Auto";
   if (/^\d+k$/.test(text)) return text.toUpperCase();
   if (key === "outputFormat") return text.toUpperCase();

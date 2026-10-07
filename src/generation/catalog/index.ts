@@ -8,7 +8,7 @@ import { grokImagineVideo15 } from "./grok-imagine-video-1.5";
 import { happyHorse1 } from "./happy-horse-1";
 import { happyHorse11 } from "./happy-horse-1.1";
 import { ideogram4 } from "./ideogram-4";
-import { kling25 } from "./kling-2.5";
+import { kling25, kling25Pro } from "./kling-2.5";
 import { kling26, kling26MotionPro, kling26MotionStd } from "./kling-2.6";
 import {
   kling34k,
@@ -18,8 +18,7 @@ import {
   kling3Std,
   kling3Turbo,
 } from "./kling-3";
-import { klingO1 } from "./kling-o1";
-import { klingO3 } from "./kling-o3";
+import { klingO1, klingO1Edit, klingO3, klingO3Edit } from "./kling-omni";
 import { ltx25Fast } from "./ltx-2.5-fast";
 import { marketingStudioFlare, marketingStudioImage, marketingStudioSunburst } from "./marketing-studio";
 import { ltx25Pro } from "./ltx-2.5-pro";
@@ -81,8 +80,11 @@ export const MODELS: readonly ModelEntry[] = [
   happyHorse11,
   kling26,
   kling25,
+  kling25Pro,
   klingO3,
+  klingO3Edit,
   klingO1,
+  klingO1Edit,
   ltx25Fast,
   ltx25Pro,
   grokImagineVideo15,

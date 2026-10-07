@@ -11,6 +11,12 @@ const MAP: Record<string, Mapper> = {
   "soul-2": (plane) => mapSoul(plane, "higgsfield-ai/soul/v2/standard"),
   "soul-standard": (plane) => mapSoul(plane, "higgsfield-ai/soul/standard"),
   "cinema-studio-4": mapCinemaStudio,
+  "kling-o3": (plane) => mapKlingOmni(plane, "kling-video/o3"),
+  "kling-o1": (plane) => mapKlingOmni(plane, "kling-video/omni"),
+  "kling-o3-edit": (plane) => mapKlingOmniEdit(plane, "kling-video/o3/video-edit"),
+  "kling-o1-edit": (plane) => mapKlingOmniEdit(plane, "kling-video/omni/video-edit"),
+  "kling-2.5": (plane) => mapKling25(plane, "kling-video/v2.5-turbo/standard", false),
+  "kling-2.5-pro": (plane) => mapKling25(plane, "kling-video/v2.5-turbo/pro", true),
   "kling-2.6-motion-std": (plane) => mapKlingMotion(plane, "kling-video/motion-control/std"),
   "kling-2.6-motion-pro": (plane) => mapKlingMotion(plane, "kling-video/motion-control/pro"),
   "recraft-4.1": (plane) => mapRecraft(plane, "recraft/v4.1/text-to-image", "recraft/v4.1/pro/text-to-image"),
@@ -105,6 +111,86 @@ function mapKlingMotion(plane: GenerationPlane, path: string): Mapped {
       ...(video ? { video_url: video } : {}),
       keep_original_sound: plane.settings.keepOriginalSound ? "yes" : "no",
       character_orientation: plane.settings.characterOrientation,
+    },
+  };
+}
+
+function mapKlingOmni(plane: GenerationPlane, prefix: string): Mapped {
+  const start = urls(plane, "start")[0];
+  const end = urls(plane, "end")[0];
+  const refs = urls(plane, "reference").slice(0, 4);
+  const video = urls(plane, "video")[0];
+  const shared = {
+    prompt: plane.prompt.text,
+    aspect_ratio: plane.settings.aspectRatio,
+  };
+  if (start) {
+    return {
+      path: `${prefix}/first-last-frame`,
+      body: {
+        ...shared,
+        mode: plane.settings.mode,
+        duration: plane.settings.duration,
+        ...sound(plane),
+        first_frame_url: start,
+        ...(end ? { last_frame_url: end } : {}),
+      },
+    };
+  }
+  if (video) {
+    /* A video reference renders at std or pro, for 3–10 seconds, without sound. */
+    return {
+      path: `${prefix}/video-reference`,
+      body: {
+        ...shared,
+        mode: plane.settings.mode === "std" ? "std" : "pro",
+        duration: Math.min(Number(plane.settings.duration), 10),
+        video_urls: [video],
+        ...(refs.length ? { image_urls: refs } : {}),
+      },
+    };
+  }
+  return {
+    path: `${prefix}/image-reference`,
+    body: {
+      ...shared,
+      mode: plane.settings.mode,
+      duration: plane.settings.duration,
+      ...sound(plane),
+      ...(refs.length ? { image_urls: refs } : {}),
+    },
+  };
+}
+
+/* O3 has native audio; Omni does not declare it, so it sends no sound field. */
+function sound(plane: GenerationPlane) {
+  return typeof plane.settings.sound === "boolean" ? { sound: plane.settings.sound ? "on" : "off" } : {};
+}
+
+function mapKlingOmniEdit(plane: GenerationPlane, path: string): Mapped {
+  const video = urls(plane, "video")[0];
+  const refs = urls(plane, "reference").slice(0, 4);
+  return {
+    path,
+    body: {
+      prompt: plane.prompt.text,
+      mode: plane.settings.mode,
+      ...(video ? { video_urls: [video] } : {}),
+      ...(refs.length ? { image_urls: refs } : {}),
+    },
+  };
+}
+
+/** Standard only animates a start frame; Pro also renders from a prompt alone. */
+function mapKling25(plane: GenerationPlane, prefix: string, textToVideo: boolean): Mapped {
+  const start = urls(plane, "start")[0];
+  return {
+    path: start || !textToVideo ? `${prefix}/image-to-video` : `${prefix}/text-to-video`,
+    body: {
+      prompt: plane.prompt.text,
+      duration: Number(plane.settings.duration),
+      cfg_scale: plane.settings.cfgScale,
+      ...(start ? { image_url: start } : {}),
     },
   };
 }
