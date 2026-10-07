@@ -1,5 +1,6 @@
 import { getModel } from "./catalog";
 import { CINEMA_CONTROLS } from "./catalog/cinema-studio";
+import { selectionFor } from "./influencer";
 import { presetId } from "./presets";
 import type { GenerationPlane, MediaRole, PlatformPaths } from "./catalog/types";
 
@@ -56,6 +57,7 @@ const MAP: Record<string, Mapper> = {
   "qwen-image-3": mapQwenImage,
   "ideogram-4": mapIdeogram,
   "z-image-turbo": mapZImage,
+  "ai-influencer": mapAiInfluencer,
 };
 
 const REQUIRED_LABEL: Record<MediaRole, string> = {
@@ -80,14 +82,21 @@ function urls(plane: GenerationPlane, role: "start" | "end" | "reference" | "vid
 }
 
 function mapSoul(plane: GenerationPlane, path: string): Mapped {
+  const character = presetId(plane.settings.character);
+  const reference = path.endsWith("/v2/standard") ? urls(plane, "reference")[0] : undefined;
   return {
-    path,
+    path: reference ? "higgsfield-ai/soul/v2/image-to-image" : path,
     body: {
       prompt: plane.prompt.text,
       batch_size: Number(plane.settings.batchSize),
       resolution: plane.settings.resolution,
       aspect_ratio: plane.settings.aspectRatio,
-      enhance_prompt: plane.settings.enhancePrompt,
+      /* Image-to-image always processes its prompt against the reference. */
+      enhance_prompt: reference ? true : plane.settings.enhancePrompt,
+      ...(reference ? { image_url: reference } : {}),
+      ...(character
+        ? { custom_reference_id: character, custom_reference_strength: Number(plane.settings.likeness) }
+        : {}),
     },
   };
 }
@@ -560,6 +569,24 @@ function mapZImage(plane: GenerationPlane): Mapped {
       aspect_ratio: plane.settings.aspectRatio,
       resolution: plane.settings.resolution,
       prompt_extend: plane.settings.enhancePrompt === true,
+    },
+  };
+}
+
+function mapAiInfluencer(plane: GenerationPlane): Mapped {
+  const tier = String(plane.settings.tier);
+  const identity = urls(plane, "start")[0];
+  const items = urls(plane, "reference").slice(0, 3);
+  const selection = selectionFor(plane.settings.traits, tier);
+  const brief = plane.prompt.text.trim().slice(0, 4000);
+  return {
+    path: "higgsfield/ai-influencer",
+    body: {
+      tier,
+      ...(selection ? { selection } : {}),
+      ...(identity ? { image_url: identity } : {}),
+      ...(items.length ? { item_image_urls: items } : {}),
+      ...(brief ? { brief } : {}),
     },
   };
 }

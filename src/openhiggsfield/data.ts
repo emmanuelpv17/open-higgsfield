@@ -1,3 +1,4 @@
+import { decodeTraits } from "@/generation/influencer";
 import { presetName } from "@/generation/presets";
 import type { MediaRole, ModelEntry, Surface } from "@/generation/catalog";
 
@@ -102,6 +103,23 @@ const SETTING_LABELS: Record<string, string> = {
   mode: "Mode",
   renderingSpeed: "Speed",
   imageWeight: "Image weight",
+  tier: "Character",
+  character: "Soul ID",
+  likeness: "Likeness",
+  traits: "Appearance",
+};
+
+/* AI Influencer's character types, named the way its playground names them. */
+const TIER_LABELS: Record<string, string> = {
+  normal: "Average",
+  freak: "Bold",
+  total: "Extreme",
+  insects: "Insect",
+  frogs: "Frog",
+  cats: "Cat",
+  dogs: "Dog",
+  capybaras: "Rodent",
+  birds: "Bird",
 };
 
 /* Cinema Studio's creative controls arrive as kebab-case slugs. */
@@ -131,6 +149,8 @@ export function settingPillValue(key: string, value: unknown): string {
   if (key === "moderation") return `Moderation ${text.toLowerCase()}`;
   if (key === "renderingSpeed") return `${text} speed`;
   if (key === "preset") return text === "None" ? "No preset" : text;
+  if (key === "character") return text === "None" ? "No Soul ID" : text;
+  if (key === "likeness") return `Likeness ${text}`;
   if (SLUG_KEYS.has(key)) return value === "auto" ? `${settingPillLabel(key)} auto` : text;
   return text;
 }
@@ -143,11 +163,18 @@ export function settingPillLabel(key: string): string {
    set in caps are lifted; "720p" and "16:9" are already how they are written. */
 export function settingValueLabel(key: string, value: unknown): string {
   if (key === "preset") return presetName(value) ?? "None";
+  if (key === "character") return presetName(value) ?? "None";
+  if (key === "likeness" && typeof value === "number") return `${Math.round(value * 100)}%`;
+  if (key === "traits") {
+    const picks = Object.values(decodeTraits(value)?.selection ?? {}).flat();
+    return picks.length ? picks.map((pick) => pick.replace(/^[a-z]{1,4}_/, "").replace(/_/g, " ")).join(", ") : "Random";
+  }
   if (typeof value === "boolean") return value ? "On" : "Off";
   if (typeof value === "number") return key === "duration" ? `${value}s` : String(value);
   const text = String(value);
   if (key === "duration" && /^\d+$/.test(text)) return `${text}s`;
   if (text === "auto") return "Auto";
+  if (key === "tier") return TIER_LABELS[text] ?? text;
   if (key === "renderingSpeed") return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
   if (/^\d+k$/.test(text)) return text.toUpperCase();
   if (key === "outputFormat") return text.toUpperCase();
@@ -194,8 +221,20 @@ const ROLE_PLURALS: Record<MediaRole, string> = {
   audio: "audio tracks",
 };
 
-export function roleNoun(role: MediaRole, count: number): string {
+export function roleNoun(role: MediaRole, count: number, model?: ModelEntry): string {
+  const own = model?.roleLabels?.[role];
+  if (own) return count === 1 ? own.toLowerCase() : `${own.toLowerCase()}s`;
   return count === 1 ? ROLE_LABELS[role].toLowerCase() : ROLE_PLURALS[role];
+}
+
+/** A role's name on this model — AI Influencer's start slot is an identity photo. */
+export function roleLabel(model: ModelEntry, role: MediaRole): string {
+  return model.roleLabels?.[role] ?? ROLE_LABELS[role];
+}
+
+export function roleTag(model: ModelEntry, role: MediaRole): string {
+  const own = model.roleLabels?.[role];
+  return own ? own.split(" ").pop()!.toUpperCase() : ROLE_TAGS[role];
 }
 
 /* Mirrors the allow-list in src/app/api/blob/route.ts. */

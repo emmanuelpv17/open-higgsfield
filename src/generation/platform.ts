@@ -50,13 +50,22 @@ export function createPlatformClient(options: PlatformClientOptions) {
   const fetchImpl = options.fetch ?? fetch;
   const auth = toAuthorizationHeader(options.apiKey);
 
-  async function send(method: "GET" | "POST", path: string, body?: Record<string, unknown>) {
+  /* The Soul ID endpoints document their own key headers; they ride along with
+     the usual Authorization header on those paths only. */
+  const colon = options.apiKey.indexOf(":");
+  const referenceHeaders = {
+    "hf-api-key": options.apiKey.slice(0, colon),
+    "hf-secret": options.apiKey.slice(colon + 1),
+  };
+
+  async function send(method: "GET" | "POST" | "DELETE", path: string, body?: Record<string, unknown>) {
     const url = `${baseUrl}${path}`;
     console.info("[platform] request", { method, url, body: body ?? null });
     const response = await fetchImpl(url, {
       method,
       headers: {
         Authorization: auth,
+        ...(path.startsWith("/v1/custom-references") ? referenceHeaders : {}),
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -79,6 +88,12 @@ export function createPlatformClient(options: PlatformClientOptions) {
     },
     async get(path: string): Promise<unknown> {
       return send("GET", path);
+    },
+    async post(path: string, body: Record<string, unknown>): Promise<unknown> {
+      return send("POST", path, body);
+    },
+    async delete(path: string): Promise<void> {
+      await send("DELETE", path);
     },
     /** Only a request still queued can be canceled; the platform refuses one
         that has started rendering. */

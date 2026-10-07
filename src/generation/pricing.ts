@@ -210,6 +210,7 @@ const PRICING: Record<string, Pricer> = {
   /* Not on the console: priced like Qwen Image 3. */
   "flux-2": borrowed(perResult({ "1k": 0.04, "2k": 0.075, "4k": 0.15 }, resolutionOf)),
   "ideogram-4": { price: () => flat(0.03) },
+  "ai-influencer": { price: () => flat(0.05) },
   /* 1k on the base endpoint, 2k on its Pro sibling. */
   "recraft-4.1": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
   "recraft-4.1-utility": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),

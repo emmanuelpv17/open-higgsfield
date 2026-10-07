@@ -1,3 +1,4 @@
+import { aiInfluencer } from "./ai-influencer";
 import { cinemaStudio4 } from "./cinema-studio";
 import { dop } from "./dop";
 import { flux2 } from "./flux-2";
@@ -37,6 +38,7 @@ export const MODELS: readonly ModelEntry[] = [
   soul2,
   soulCinema,
   soulStandard,
+  aiInfluencer,
   marketingStudioImage,
   marketingStudioFlare,
   marketingStudioSunburst,

@@ -16,6 +16,7 @@ import { createPlatformClient } from "./platform";
 import type { StatusResult } from "./platform";
 import type { PresetSource } from "./catalog/types";
 import type { MarketingPreset } from "./presets";
+import type { InfluencerCategory } from "./influencer";
 import { toPlatform } from "./to-platform";
 
 /* Server actions answer failures as values: a thrown error reaches a production
@@ -54,7 +55,7 @@ export async function submitGeneration(plane: GenerationPlane) {
 
 export type PresetPage = { items: MarketingPreset[]; cursor: number | null };
 
-const PRESET_PATHS: Record<PresetSource, string> = {
+const PRESET_PATHS: Record<Extract<PresetSource, "marketing-studio" | "genjutsu-restyle">, string> = {
   "marketing-studio": "/marketing-studio/image/presets",
   "genjutsu-restyle": "/models/higgsfield/genjutsu/restyle/v1.0/presets",
 };
@@ -82,6 +83,115 @@ export async function listPresets(data: unknown): Promise<ActionResult<PresetPag
         })
       : [];
     return { items, cursor: typeof page.cursor === "number" ? page.cursor : null };
+  });
+}
+
+/** AI Influencer's appearance catalog. The platform serves it publicly; it is
+    read through the visitor's client like every other call. */
+export async function listInfluencerOptions(): Promise<ActionResult<InfluencerCategory[]>> {
+  return settle(async () => {
+    const payload = (await createPlatformClient(await readCredentials()).get(
+      "/models/higgsfield/ai-influencer/options",
+    )) as { categories?: unknown };
+    const text = (value: unknown) => (typeof value === "string" ? value : null);
+    const list = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : null);
+    return (Array.isArray(payload?.categories) ? payload.categories : []).flatMap((raw) => {
+      const row = raw as Record<string, unknown>;
+      const key = text(row.key);
+      if (!key || !Array.isArray(row.options)) return [];
+      return [{
+        key,
+        label: text(row.label) ?? key,
+        tiers: list(row.tiers) ?? [],
+        max: typeof row.max === "number" && row.max > 0 ? row.max : 1,
+        options: row.options.flatMap((rawOption) => {
+          const option = rawOption as Record<string, unknown>;
+          const optionKey = text(option.key);
+          return optionKey
+            ? [{
+                key: optionKey,
+                label: text(option.label) ?? optionKey,
+                img: text(option.img),
+                color: text(option.color),
+                tiers: list(option.tiers),
+                slot: text(option.slot),
+                exclusive: option.exclusive === true,
+              }]
+            : [];
+        }),
+      }];
+    });
+  });
+}
+
+export type SoulCharacter = { id: string; name: string; status: string; thumbnail: string | null };
+
+const SOUL_VERSIONS = new Set(["v1", "v2", "cinema"]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function toCharacter(raw: unknown): SoulCharacter | null {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  if (typeof row.id !== "string") return null;
+  return {
+    id: row.id,
+    name: typeof row.name === "string" ? row.name : "Untitled",
+    status: typeof row.status === "string" ? row.status : "not_ready",
+    thumbnail: typeof row.thumbnail_url === "string" ? row.thumbnail_url : null,
+  };
+}
+
+/** The visitor's Soul ID characters. One trained for another Soul version is
+    left out when the platform says which version it was trained for. */
+export async function listSoulCharacters(version: unknown): Promise<ActionResult<SoulCharacter[]>> {
+  return settle(async () => {
+    const client = createPlatformClient(await readCredentials());
+    const out: SoulCharacter[] = [];
+    for (let page = 1; page <= 5; page++) {
+      const payload = (await client.get(`/v1/custom-references/list?page=${page}&page_size=50`)) as {
+        items?: unknown;
+        total_pages?: unknown;
+      } | null;
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      for (const raw of items) {
+        const trained = (raw as Record<string, unknown>)?.model_version;
+        if (typeof trained === "string" && typeof version === "string" && trained !== version) continue;
+        const character = toCharacter(raw);
+        if (character) out.push(character);
+      }
+      if (typeof payload?.total_pages !== "number" || page >= payload.total_pages) break;
+    }
+    return out;
+  });
+}
+
+/** Starts training a Soul ID from uploaded photos of one person. */
+export async function createSoulCharacter(data: unknown): Promise<ActionResult<SoulCharacter>> {
+  return settle(async () => {
+    const input = (data ?? {}) as { name?: unknown; version?: unknown; urls?: unknown };
+    const name = typeof input.name === "string" ? input.name.trim().slice(0, 100) : "";
+    if (!name) throw new Error("Give the character a name");
+    const version = typeof input.version === "string" && SOUL_VERSIONS.has(input.version) ? input.version : "v2";
+    const urls = Array.isArray(input.urls)
+      ? input.urls.filter((url): url is string => typeof url === "string" && /^https?:\/\//.test(url)).slice(0, 100)
+      : [];
+    if (!urls.length) throw new Error("Add at least one photo");
+    const created = toCharacter(
+      await createPlatformClient(await readCredentials()).post("/v1/custom-references", {
+        name,
+        model_version: version,
+        input_images: urls.map((url) => ({ type: "image_url", image_url: url })),
+      }),
+    );
+    if (!created) throw new Error("The platform did not return the new character");
+    return created;
+  });
+}
+
+export async function deleteSoulCharacter(id: unknown): Promise<ActionResult<null>> {
+  return settle(async () => {
+    if (typeof id !== "string" || !UUID.test(id)) throw new Error("Invalid character id");
+    await createPlatformClient(await readCredentials()).delete(`/v1/custom-references/${id}`);
+    return null;
   });
 }
 
