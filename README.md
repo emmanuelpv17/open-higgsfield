@@ -95,11 +95,11 @@ used; the server's `OPEN_HIGGSFIELD_MCP_API_KEY` is never a fallback. The key
 is not stored, and logs show it only masked (first four characters of the id).
 A missing or malformed header gets a 400 with instructions in Spanish.
 
-- **claude.ai**: Settings → Connectors → Add custom connector, URL
-  `https://<your-deployment>/api/mcp`, then under **Advanced settings** add
-  the header `X-Higgsfield-Key` with your key. At the time of writing the
-  claude.ai form may offer only OAuth Client ID/Secret and no header field; if
-  so, use one of the options below or the secret-path endpoint.
+- **claude.ai**: Settings → Connectors → Add custom connector. Set the URL
+  to `https://<your-deployment>/api/mcp`, then under **Request headers**
+  ("Encabezados de solicitud") press **Add header** ("Agregar encabezado"):
+  name `X-Higgsfield-Key`, value your full key `<id>:<secret>`. Save; no
+  OAuth fields are needed.
 - **Claude Code**:
   ```bash
   claude mcp add --transport http higgsfield https://<your-deployment>/api/mcp \
@@ -121,8 +121,7 @@ A missing or malformed header gets a 400 with instructions in Spanish.
 
 ### `/api/mcp/<secret>` — the deployment owner's key
 
-Uses the server's own key and needs no header, so it works with the plain
-claude.ai connector form. It stays off (404) until both variables are set:
+Uses the server's own key and needs no header. It stays off (404) until both variables are set:
 
 - `OPEN_HIGGSFIELD_MCP_API_KEY` — the Higgsfield key as `id:secret`
 - `OPEN_HIGGSFIELD_MCP_SECRET` — a long random string (24+ letters, digits or `-`)
