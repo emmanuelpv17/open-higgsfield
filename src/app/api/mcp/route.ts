@@ -13,10 +13,10 @@ const HEADER = "x-higgsfield-key";
 function howTo(origin: string): string {
   const url = `${origin}/api/mcp`;
   return (
-    `Conéctalo con la URL ${url} y el encabezado X-Higgsfield-Key: <id>:<secret> (tu clave completa de ` +
-    "open.higgsfield.ai → API keys). En claude.ai: Configuración → Conectores → Agregar conector " +
-    "personalizado → Opciones avanzadas, si tu cuenta muestra un campo de encabezados. Si no lo muestra " +
-    `(el formulario solo trae OAuth), usa Claude Code: claude mcp add --transport http higgsfield ${url} ` +
+    "Cómo agregarlo en claude.ai: Configuración → Conectores → Agregar conector personalizado → " +
+    `URL ${url} → en "Encabezados de solicitud" pulsa "Agregar encabezado", nombre X-Higgsfield-Key ` +
+    "y valor tu clave completa de Higgsfield en formato id:secret (open.higgsfield.ai → API keys). " +
+    `En Claude Code: claude mcp add --transport http higgsfield ${url} ` +
     '--header "X-Higgsfield-Key: <id>:<secret>".'
   );
 }
