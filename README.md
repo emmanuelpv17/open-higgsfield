@@ -83,18 +83,53 @@ Next.js 16 App Router on Vercel · React 19 · plain CSS · Zustand · pnpm
 
 ## Use it from Claude (MCP connector)
 
-The deployment can act as a remote MCP server so Claude can list models,
-generate and check results from any chat, spending from one Higgsfield key.
-It stays off (404) until both variables are set in the deployment:
+The deployment is also a remote MCP server, so Claude can list models,
+generate and check results from a chat. Tools: `list_models`, `list_options`,
+`generate`, `check_generation`, `cancel_generation`. There are two endpoints:
+
+### `/api/mcp` — each person brings their own key
+
+Every request must carry the header `X-Higgsfield-Key: <id>:<secret>` (the
+full Higgsfield API key from open.higgsfield.ai → API keys). Only that key is
+used; the server's `OPEN_HIGGSFIELD_MCP_API_KEY` is never a fallback. The key
+is not stored, and logs show it only masked (first four characters of the id).
+A missing or malformed header gets a 400 with instructions in Spanish.
+
+- **claude.ai**: Settings → Connectors → Add custom connector, URL
+  `https://<your-deployment>/api/mcp`, then under **Advanced settings** add
+  the header `X-Higgsfield-Key` with your key. At the time of writing the
+  claude.ai form may offer only OAuth Client ID/Secret and no header field; if
+  so, use one of the options below or the secret-path endpoint.
+- **Claude Code**:
+  ```bash
+  claude mcp add --transport http higgsfield https://<your-deployment>/api/mcp \
+    --header "X-Higgsfield-Key: <id>:<secret>"
+  ```
+- **Claude Desktop** (config file, via `mcp-remote`):
+  ```json
+  {
+    "mcpServers": {
+      "higgsfield": {
+        "command": "npx",
+        "args": ["mcp-remote", "https://<your-deployment>/api/mcp",
+                 "--header", "X-Higgsfield-Key:${HF_KEY}"],
+        "env": { "HF_KEY": "<id>:<secret>" }
+      }
+    }
+  }
+  ```
+
+### `/api/mcp/<secret>` — the deployment owner's key
+
+Uses the server's own key and needs no header, so it works with the plain
+claude.ai connector form. It stays off (404) until both variables are set:
 
 - `OPEN_HIGGSFIELD_MCP_API_KEY` — the Higgsfield key as `id:secret`
 - `OPEN_HIGGSFIELD_MCP_SECRET` — a long random string (24+ letters, digits or `-`)
 
-Then add a custom connector in Claude with the URL
-`https://<your-deployment>/api/mcp/<OPEN_HIGGSFIELD_MCP_SECRET>`. Anyone with
-that URL can spend from the key, so keep it private and rotate the secret if
-it leaks. Tools: `list_models`, `list_options`, `generate`, `check_generation`,
-`cancel_generation`.
+Connector URL: `https://<your-deployment>/api/mcp/<OPEN_HIGGSFIELD_MCP_SECRET>`.
+Anyone with that URL spends from the owner's key, so keep it private and
+rotate the secret if it leaks.
 
 ## Architecture
 
