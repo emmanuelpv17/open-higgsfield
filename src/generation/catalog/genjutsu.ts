@@ -36,3 +36,25 @@ export const genjutsuRestyle: ModelEntry = {
     resolution,
   },
 };
+
+/** Genjutsu Light: the same inputs at a fraction of the price. It reads only
+    the first 15 seconds of the source and keeps its audio. */
+const lightResolution = { type: "enum", values: ["480p", "720p", "1080p"], default: "720p" } as const;
+
+export const genjutsuLightMotion: ModelEntry = {
+  id: "genjutsu-light-motion",
+  surface: "video",
+  label: "Genjutsu Light Motion Transfer",
+  roles: { video: 1, reference: 8 },
+  requires: ["video", "reference"],
+  settings: { resolution: lightResolution },
+};
+
+export const genjutsuLightSwap: ModelEntry = {
+  id: "genjutsu-light-swap",
+  surface: "video",
+  label: "Genjutsu Light Object Swap",
+  roles: { video: 1, reference: 8 },
+  requires: ["video", "reference"],
+  settings: { resolution: lightResolution },
+};
