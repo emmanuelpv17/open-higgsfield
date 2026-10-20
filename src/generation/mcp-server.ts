@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole } from "./catalog";
 import { encodeTraits } from "./influencer";
+import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { createPlatformClient, type GenerationStatus } from "./platform";
 import { estimateCost, formatCost, pricedFromSource } from "./pricing";
 import { toPlatform } from "./to-platform";
@@ -136,7 +137,7 @@ export function createStudioMcpServer(client: Client): McpServer {
     {
       title: "Generate image or video",
       description:
-        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs must be public URLs (for example results of earlier generations). Waits up to ~45 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
+        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs must be public URLs (for example results of earlier generations, or files the user attached uploaded to a temporary host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~45 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
       inputSchema: {
         model: z.string().describe("Model id from list_models"),
         prompt: z.string().max(10000).default("").describe("What to generate"),
@@ -167,8 +168,17 @@ export function createStudioMcpServer(client: Client): McpServer {
       for (const role of ROLES) {
         const value = media?.[role];
         const urls = (Array.isArray(value) ? value : value ? [value] : []).slice(0, model.roles[role] ?? 0);
-        if (urls.length) items[role] = urls.map((url, index) => ({ id: `${role}-${index}`, url, role }));
+        if (urls.length) {
+          items[role] = urls.map((url, index) => ({ id: `${role}-${index}`, url: directMediaUrl(url), role }));
+        }
       }
+      /* Every link is opened before the run is paid for. */
+      const problems = (
+        await Promise.all(
+          Object.entries(items).flatMap(([role, list]) => (list ?? []).map((item) => checkMediaUrl(item.url, role))),
+        )
+      ).filter((problem): problem is string => problem !== null);
+      if (problems.length) throw new Error(`No se envió nada a Higgsfield (no se gastó saldo). ${problems.join(" ")}`);
       const { path, body } = toPlatform({ model: model.id, prompt: { text: prompt.trim() }, media: items, settings: parsed });
       const queued = await client.submit(path, body);
       const cost = estimateCost(model.id, parsed, null);
