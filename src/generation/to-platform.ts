@@ -53,6 +53,8 @@ const MAP: Record<string, Mapper> = {
   "genjutsu-motion": (plane) => mapGenjutsu(plane, "higgsfield/genjutsu/motion-transfer/v1.0"),
   "genjutsu-swap": (plane) => mapGenjutsu(plane, "higgsfield/genjutsu/object-swap/v1.0"),
   "genjutsu-restyle": mapGenjutsuRestyle,
+  "genjutsu-light-motion": (plane) => mapGenjutsu(plane, "higgsfield/genjutsu-light/motion-transfer/v1.0"),
+  "genjutsu-light-swap": (plane) => mapGenjutsu(plane, "higgsfield/genjutsu-light/object-swap/v1.0"),
   "grok-imagine-2": mapGrokImage,
   "qwen-image-3": mapQwenImage,
   "ideogram-4": mapIdeogram,

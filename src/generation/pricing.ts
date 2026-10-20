@@ -89,8 +89,8 @@ function spread(rate: number | [number, number], seconds: number): Cost {
 }
 
 const byResolution =
-  (table: Record<string, number>) =>
-  (settings: Settings): number | undefined =>
+  <Rate extends number | [number, number]>(table: Record<string, Rate>) =>
+  (settings: Settings): Rate | undefined =>
     table[String(settings.resolution)];
 
 /* Kling's O-series pages publish std and pro rates; 4K is priced as Kling 3.0 4K. */
@@ -132,6 +132,10 @@ function marketingStudio(approx: boolean): Pricer {
 }
 
 /* 1080p is not priced on the console; 720p's rate stands in as a floor. */
+const genjutsuLight = perSourceSecond(
+  byResolution<[number, number]>({ "480p": [0.05, 0.1], "720p": [0.1, 0.2], "1080p": [0.2, 0.4] }),
+  (seconds) => Math.min(seconds, 15),
+);
 const genjutsu = perSourceSecond(byResolution({ "480p": 0.318, "720p": 0.681, "1080p": 0.681 }));
 
 const PRICING: Record<string, Pricer> = {
@@ -140,6 +144,11 @@ const PRICING: Record<string, Pricer> = {
   "genjutsu-swap": genjutsu,
   /* Restyle publishes no price of its own; Genjutsu's rates stand in. */
   "genjutsu-restyle": borrowed(genjutsu),
+  /* Published as $0.05/$0.10/$0.20 per billed second (source + output) at
+     480p/720p/1080p, but listed at half that elsewhere; both bounds are shown.
+     Only the first 15 seconds of the source are read. */
+  "genjutsu-light-motion": genjutsuLight,
+  "genjutsu-light-swap": genjutsuLight,
   /* Token-billed; the page's per-second figures are for 16:9 with no input video. */
   "seedance-2.5": perSecond(byResolution({ "480p": 0.2056, "720p": 0.4622 })),
   /* Billed on the input video plus the video generated: an edit writes as

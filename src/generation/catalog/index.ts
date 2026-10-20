@@ -3,7 +3,13 @@ import { cinemaStudio4 } from "./cinema-studio";
 import { dop } from "./dop";
 import { flux2 } from "./flux-2";
 import { flux3 } from "./flux-3";
-import { genjutsuMotion, genjutsuRestyle, genjutsuSwap } from "./genjutsu";
+import {
+  genjutsuLightMotion,
+  genjutsuLightSwap,
+  genjutsuMotion,
+  genjutsuRestyle,
+  genjutsuSwap,
+} from "./genjutsu";
 import { grokImagine2 } from "./grok-imagine-2";
 import { grokImagineVideo15 } from "./grok-imagine-video-1.5";
 import { happyHorse1, happyHorse11 } from "./happy-horse";
@@ -46,6 +52,8 @@ export const MODELS: readonly ModelEntry[] = [
   genjutsuMotion,
   genjutsuSwap,
   genjutsuRestyle,
+  genjutsuLightMotion,
+  genjutsuLightSwap,
   seedance25,
   seedance25Edit,
   seedance25Extend,
