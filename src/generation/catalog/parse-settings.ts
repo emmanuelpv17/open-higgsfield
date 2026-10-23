@@ -1,22 +1,28 @@
 import type { ModelEntry } from "./types";
 
+/** A value the catalog no longer allows falls back to the default: browsers
+    keep settings saved by older builds, and those must not break the studio.
+    `strict` refuses it instead, for input that should already be valid. */
 export function parseSettings(
   model: ModelEntry,
   raw: Record<string, unknown>,
+  { strict = false }: { strict?: boolean } = {},
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, field] of Object.entries(model.settings)) {
     const value = raw[key];
     if (field.type === "enum") {
       const picked = typeof value === "string" ? value : field.default;
-      if (!field.values.includes(picked)) throw new Error(`Invalid ${key}`);
-      out[key] = picked;
+      if (field.values.includes(picked)) out[key] = picked;
+      else if (strict) throw new Error(`Invalid ${key}`);
+      else out[key] = field.default;
       continue;
     }
     if (field.type === "range") {
       const picked = typeof value === "number" ? value : field.default;
-      if (picked < field.min || picked > field.max) throw new Error(`Invalid ${key}`);
-      out[key] = picked;
+      if (picked >= field.min && picked <= field.max) out[key] = picked;
+      else if (strict) throw new Error(`Invalid ${key}`);
+      else out[key] = field.default;
       continue;
     }
     if (field.type === "preset") {

@@ -30,6 +30,7 @@ const MAP: Record<string, Mapper> = {
   "kling-o1-edit": (plane) => mapKlingOmniEdit(plane, "kling-video/omni/video-edit"),
   "kling-2.5": (plane) => mapKling25(plane, "kling-video/v2.5-turbo/standard", false),
   "kling-2.5-pro": (plane) => mapKling25(plane, "kling-video/v2.5-turbo/pro", true),
+  "kling-2.6": mapKling26,
   "kling-2.6-motion-std": (plane) => mapKlingMotion(plane, "kling-video/motion-control/std"),
   "kling-2.6-motion-pro": (plane) => mapKlingMotion(plane, "kling-video/motion-control/pro"),
   "recraft-4.1": (plane) => mapRecraft(plane, "recraft/v4.1/text-to-image", "recraft/v4.1/pro/text-to-image"),
@@ -358,12 +359,14 @@ function mapKlingOmni(plane: GenerationPlane, prefix: string): Mapped {
     aspect_ratio: plane.settings.aspectRatio,
   };
   if (start) {
+    /* Omni's first-last-frame sells 5s and 10s clips only; the nearer one is sent. */
+    const duration = Number(plane.settings.duration);
     return {
       path: `${prefix}/first-last-frame`,
       body: {
         ...shared,
         mode: plane.settings.mode,
-        duration: plane.settings.duration,
+        duration: prefix === "kling-video/omni" ? (duration <= 7 ? 5 : 10) : plane.settings.duration,
         ...sound(plane),
         first_frame_url: start,
         ...(end ? { last_frame_url: end } : {}),
@@ -412,6 +415,13 @@ function mapKlingOmniEdit(plane: GenerationPlane, path: string): Mapped {
       ...(refs.length ? { image_urls: refs } : {}),
     },
   };
+}
+
+/** Kling 2.6 takes its catalog paths; its 5s or 10s duration is an enum the
+    shared map would not forward, so it is sent as a number. */
+function mapKling26(plane: GenerationPlane): Mapped {
+  const settings = { ...plane.settings, duration: Number(plane.settings.duration) };
+  return mapByPaths({ ...plane, settings }, getModel(plane.model).paths!);
 }
 
 /** Standard only animates a start frame; Pro also renders from a prompt alone. */
@@ -497,12 +507,13 @@ function mapGenjutsuRestyle(plane: GenerationPlane): Mapped {
   const video = urls(plane, "video")[0];
   const refs = urls(plane, "reference").slice(0, 5);
   const preset = presetId(plane.settings.preset);
+  if (!preset) throw new Error("Genjutsu Restyle necesita un estilo: elige uno en Estilo");
   return {
     path: "higgsfield/genjutsu/restyle/v1.0",
     body: {
       prompt: plane.prompt.text,
       resolution: plane.settings.resolution,
-      ...(preset ? { preset_id: preset } : {}),
+      preset_id: preset,
       ...(video ? { video_url: video } : {}),
       image_urls: refs,
     },

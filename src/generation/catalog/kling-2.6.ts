@@ -1,12 +1,18 @@
 import type { ModelEntry } from "./types";
 import { t2v, videoModel } from "./defaults";
 
-export const kling26 = videoModel(
+const kling26Base = videoModel(
   "kling-2.6",
   "Kling 2.6",
   { start: 1 },
   t2v("kling-video/v2.6/pro/text-to-video"),
 );
+
+/** Kling 2.6 sells 5s and 10s clips only. */
+export const kling26: ModelEntry = {
+  ...kling26Base,
+  settings: { ...kling26Base.settings, duration: { type: "enum", values: ["5", "10"], default: "5" } },
+};
 
 const motionSettings = {
   keepOriginalSound: { type: "boolean", default: true },

@@ -48,22 +48,77 @@ export async function loadHistory(
   return mergeHistory(stored, fromLegacy);
 }
 
+/* Ids this tab last saved. Other tabs write the same store, so a save merges
+   into what is there rather than over it: a row this tab dropped since its
+   last save (deleted, swapped for its terminal rows, aged out) is removed, and
+   a row only another tab knows about is kept. */
+let saved = new Set<string>();
+
 export async function saveHistory(
   records: RunRecord[],
   kv: Kv = defaultKv(),
   legacy: LegacyStore | undefined = browserLegacy(),
 ): Promise<void> {
-  const next = capHistory(records.filter(isRunRecord));
+  const mine = capHistory(records.filter(isRunRecord));
+  const ids = new Set(mine.map((record) => record.id));
+  const removed = new Set([...saved].filter((id) => !ids.has(id)));
+  saved = ids;
+  const kept = (stored: RunRecord[]) => stored.filter((record) => !removed.has(record.id));
+  let next = mine;
   try {
-    await kv.set(HISTORY_KEY, next);
+    next = await kv.update(HISTORY_KEY, (stored) => mergeHistory(kept(storedRecords(stored)), mine));
   } catch {
     /* private mode or a denied store */
   }
   try {
-    legacy?.setItem(LEGACY_HISTORY_KEY, JSON.stringify(next));
+    legacy?.setItem(LEGACY_HISTORY_KEY, JSON.stringify(mergeHistory(kept(readLegacy(legacy)), next)));
   } catch {
     /* quota or a denied store */
   }
+  historyChannel()?.postMessage({ rows: next, removed: [...removed] });
+}
+
+let channel: BroadcastChannel | null | undefined;
+
+/* One channel both sends and listens: a channel never hears its own messages,
+   but a second one in the same tab would. */
+function historyChannel(): BroadcastChannel | null {
+  if (channel === undefined) {
+    channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("openhiggsfield.history");
+  }
+  return channel;
+}
+
+/** Hands `listener` each save another tab makes. */
+export function subscribeHistory(listener: (rows: RunRecord[], removed: string[]) => void): () => void {
+  const bus = historyChannel();
+  if (!bus) return () => {};
+  const onMessage = (event: MessageEvent) => {
+    const data = (event.data ?? {}) as { rows?: unknown; removed?: unknown };
+    if (!Array.isArray(data.rows) || !Array.isArray(data.removed)) return;
+    listener(
+      data.rows.filter(isRunRecord),
+      data.removed.filter((id): id is string => typeof id === "string"),
+    );
+  };
+  bus.addEventListener("message", onMessage);
+  return () => bus.removeEventListener("message", onMessage);
+}
+
+/** Folds another tab's save in: rows this tab has not seen, runs that finished
+    there, rows removed there. Nothing else is taken, so two tabs settle rather
+    than bounce saves off each other; with nothing to take, `current` comes
+    back as is. */
+export function adoptHistory(current: RunRecord[], rows: RunRecord[], removed: string[]): RunRecord[] {
+  const gone = new Set(removed);
+  const byId = new Map(current.map((record) => [record.id, record]));
+  const fresh = rows.filter((row) => {
+    if (gone.has(row.id)) return false;
+    const have = byId.get(row.id);
+    return !have || (have.status === "running" && row.status !== "running");
+  });
+  if (fresh.length === 0 && !current.some((record) => gone.has(record.id))) return current;
+  return mergeHistory(fresh, current.filter((record) => !gone.has(record.id)));
 }
 
 /** Session rows win on id collision so a generate that landed before IDB
@@ -79,12 +134,14 @@ export function mergeHistory(stored: RunRecord[], live: RunRecord[]): RunRecord[
 
 async function readIdb(kv: Kv): Promise<RunRecord[]> {
   try {
-    const stored = await kv.get<unknown>(HISTORY_KEY);
-    if (!Array.isArray(stored)) return [];
-    return capHistory(stored.filter(isRunRecord));
+    return storedRecords(await kv.get<unknown>(HISTORY_KEY));
   } catch {
     return [];
   }
+}
+
+function storedRecords(stored: unknown): RunRecord[] {
+  return Array.isArray(stored) ? capHistory(stored.filter(isRunRecord)) : [];
 }
 
 function readLegacy(legacy: LegacyStore | undefined): RunRecord[] {

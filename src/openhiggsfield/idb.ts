@@ -1,6 +1,9 @@
 export type Kv = {
   get<T>(key: string): Promise<T | undefined>;
   set(key: string, value: unknown): Promise<void>;
+  /** Reads a key and writes what `change` makes of it in one transaction, so
+      another tab's write cannot land between the two. */
+  update<T>(key: string, change: (current: unknown) => T): Promise<T>;
 };
 
 export type LegacyStore = {
@@ -21,6 +24,11 @@ export function memoryKv(): Kv {
     },
     async set(key, value) {
       map.set(key, value);
+    },
+    async update(key, change) {
+      const next = change(map.get(key));
+      map.set(key, next);
+      return next;
     },
   };
 }
@@ -58,6 +66,24 @@ export function idbKv(): Kv {
     },
     async set(key, value) {
       await request("readwrite", (store) => store.put(value, key));
+    },
+    update<T>(key: string, change: (current: unknown) => T) {
+      return open().then(
+        (db) =>
+          new Promise<T>((resolve, reject) => {
+            const tx = db.transaction(STORE, "readwrite");
+            const store = tx.objectStore(STORE);
+            const read = store.get(key);
+            let next: T;
+            read.onsuccess = () => {
+              next = change(read.result);
+              store.put(next, key);
+            };
+            tx.oncomplete = () => resolve(next);
+            tx.onabort = () => reject(tx.error ?? read.error);
+            tx.onerror = () => reject(tx.error ?? read.error);
+          }),
+      );
     },
   };
 }

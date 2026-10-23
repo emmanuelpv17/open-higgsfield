@@ -12,8 +12,8 @@ import {
   encodeCredentials,
   parseCredentialInput,
 } from "./credentials";
-import { createPlatformClient } from "./platform";
-import type { StatusResult } from "./platform";
+import { PlatformError, createPlatformClient } from "./platform";
+import type { GenerationStatus } from "./platform";
 import type { PresetSource } from "./catalog/types";
 import type { MarketingPreset } from "./presets";
 import type { InfluencerCategory } from "./influencer";
@@ -205,25 +205,45 @@ export async function cancelGeneration(requestId: string): Promise<ActionResult<
   });
 }
 
+/** One request's answer inside a batched status poll. An error says what it is
+    about: "run" — the platform refuses the request itself, however often it is
+    asked; "key" — no key, or one it turns away, which holds every run until it
+    is fixed while the runs go on; null — a passing 429 or 5xx, asked again. */
+export type StatusAnswer =
+  | { requestId: string; status: GenerationStatus }
+  | { requestId: string; error: string; about: "run" | "key" | null };
+
+/* Refusals of the request itself: a bad request, a request it does not know. */
+const RUN_REFUSALS = new Set([400, 404]);
+/* Refusals of the key: one the platform does not accept, or not for this. */
+const KEY_REFUSALS = new Set([401, 403]);
+
 /** Every request in flight, answered in one round trip. Next dispatches server
     actions one at a time per client, so a poll per run would queue ahead of the
     next submit — the fan-out belongs on this side of the call, where it is
     genuinely parallel. */
-export async function getGenerationStatuses(data: unknown): Promise<StatusResult[]> {
+export async function getGenerationStatuses(data: unknown): Promise<StatusAnswer[]> {
   const requestIds = parseRequestIds(data);
   let client: ReturnType<typeof createPlatformClient>;
   try {
     client = createPlatformClient(await readCredentials());
   } catch (caught) {
     const error = caught instanceof Error ? caught.message : String(caught);
-    return requestIds.map((requestId) => ({ requestId, error }));
+    return requestIds.map((requestId): StatusAnswer => ({ requestId, error, about: "key" }));
   }
   return Promise.all(
-    requestIds.map(async (requestId): Promise<StatusResult> => {
+    requestIds.map(async (requestId): Promise<StatusAnswer> => {
       try {
+        /* Refused alone, so one malformed id cannot fail the whole round. */
+        if (!REQUEST_ID.test(requestId)) throw new PlatformError(400, { detail: "Invalid request id" });
         return { requestId, status: await client.status(requestId) };
       } catch (caught) {
-        return { requestId, error: caught instanceof Error ? caught.message : String(caught) };
+        const status = caught instanceof PlatformError ? caught.status : 0;
+        return {
+          requestId,
+          error: caught instanceof Error ? caught.message : String(caught),
+          about: RUN_REFUSALS.has(status) ? "run" : KEY_REFUSALS.has(status) ? "key" : null,
+        };
       }
     }),
   );
@@ -250,16 +270,23 @@ async function readCredentials() {
   return { ...stored, baseUrl };
 }
 
+/* The client only asks about what is in flight, and poll.ts sends at most this
+   many per round. The cap bounds what one call can fan out to; only an id
+   shaped like a short token is passed on to the platform. */
+const MAX_STATUS_IDS = 50;
+const REQUEST_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
 function parseRequestIds(data: unknown): string[] {
   const payload = asObject(data, "Invalid status payload");
   const requestIds = payload.requestIds;
-  if (!Array.isArray(requestIds) || requestIds.length === 0) {
+  if (!Array.isArray(requestIds) || requestIds.length === 0 || requestIds.length > MAX_STATUS_IDS) {
     throw new Error("Invalid request ids");
   }
-  return requestIds.map((requestId) => {
+  const ids = requestIds.map((requestId) => {
     if (typeof requestId !== "string" || !requestId) throw new Error("Invalid request id");
     return requestId;
   });
+  return [...new Set(ids)];
 }
 
 function asObject(data: unknown, message: string): Record<string, unknown> {

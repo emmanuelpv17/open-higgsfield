@@ -1,3 +1,4 @@
+import type { MediaRole } from "./catalog/types";
 import { presetId } from "./presets";
 
 /* Published Higgsfield API prices in USD, regular (undiscounted) rates, read
@@ -20,10 +21,14 @@ export type Cost = { usd: number; max?: number; approx?: boolean };
 
 type Settings = Record<string, unknown>;
 
+/** The run's attachments by role. Some models send a run to another endpoint,
+    at another rate or a capped duration, by what is attached. */
+export type Attached = Partial<Record<MediaRole, readonly unknown[]>>;
+
 type Pricer = {
   /** Priced from the length of the attached source video. */
   source?: boolean;
-  price: (settings: Settings, sourceSeconds: number | null) => Cost | null;
+  price: (settings: Settings, sourceSeconds: number | null, media: Attached) => Cost | null;
 };
 
 const flat = (usd: number | undefined): Cost | null => (usd === undefined ? null : { usd });
@@ -46,13 +51,15 @@ const perResult = (
 /** Prices a model the console lists nothing for by a comparable one. */
 const borrowed = (pricer: Pricer): Pricer => ({
   source: pricer.source,
-  price: (settings, sourceSeconds) => {
-    const cost = pricer.price(settings, sourceSeconds);
+  price: (settings, sourceSeconds, media) => {
+    const cost = pricer.price(settings, sourceSeconds, media);
     return cost && { ...cost, approx: true };
   },
 });
 
 const resolutionOf = (settings: Settings) => String(settings.resolution);
+
+const has = (media: Attached, role: MediaRole) => (media[role]?.length ?? 0) > 0;
 
 /** Billed per started second of the requested duration. */
 function perSecond(rates: (settings: Settings) => number | [number, number] | undefined): Pricer {
@@ -99,6 +106,39 @@ const byMode =
   (settings: Settings): number | undefined =>
     table[String(settings.mode)];
 
+/* Priced on the endpoint mapKlingOmni picks: a start frame goes to first/last
+   frame, which Omni sells as 5s or 10s clips; a video, to video reference,
+   which renders std or pro for at most 10s and bills 0.126–0.168/s. */
+const klingVideoReference = perSecond((settings) => (settings.mode === "std" ? 0.126 : 0.168));
+
+function klingOmni(rates: Record<string, number>, framesFiveOrTen: boolean): Pricer {
+  const base = perSecond(byMode(rates));
+  return {
+    price: (settings, sourceSeconds, media) => {
+      const duration = Number(settings.duration);
+      if (has(media, "start")) {
+        const frames = framesFiveOrTen ? { ...settings, duration: duration <= 7 ? 5 : 10 } : settings;
+        return base.price(frames, sourceSeconds, media);
+      }
+      if (has(media, "video")) {
+        return klingVideoReference.price({ ...settings, duration: Math.min(duration, 10) }, sourceSeconds, media);
+      }
+      return base.price(settings, sourceSeconds, media);
+    },
+  };
+}
+
+/* A reference run, with no start frame, is sent for at most 10 seconds. */
+function wan2(referenceRoles: readonly MediaRole[]): Pricer {
+  const base = perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 }));
+  return {
+    price: (settings, sourceSeconds, media) =>
+      !has(media, "start") && referenceRoles.some((role) => has(media, role))
+        ? base.price({ ...settings, duration: Math.min(Number(settings.duration), 10) }, sourceSeconds, media)
+        : base.price(settings, sourceSeconds, media),
+  };
+}
+
 /* Seedance 2.0 is billed per 1,000 video tokens, seconds × width × height ×
    24 / 1024. Rates below are that per second at 16:9. */
 const seedance2Rate = (width: number, height: number, per1k: number) =>
@@ -114,16 +154,18 @@ const seedance2 = perSecond(
 );
 
 /* Three combinations are published; 4K at high is the dearest, so it stands in
-   for the rest. A preset costs 10% more than the same request without one. */
-function marketingStudio(approx: boolean): Pricer {
+   for the rest. A preset costs 10% more than the same request without one, and
+   is priced at high quality where the request forces it. */
+function marketingStudio(approx: boolean, presetForcesHigh: boolean): Pricer {
   const base = perResult(
     { "1k/low": 0.0162, "2k/low": 0.0222, "4k/high": 0.7219 },
-    (settings) => `${settings.resolution}/${settings.quality}`,
+    (settings) =>
+      `${settings.resolution}/${presetForcesHigh && presetId(settings.preset) ? "high" : settings.quality}`,
     () => 0.7219,
   );
   return {
-    price: (settings, seconds) => {
-      const cost = base.price(settings, seconds);
+    price: (settings, seconds, media) => {
+      const cost = base.price(settings, seconds, media);
       if (!cost) return null;
       const usd = presetId(settings.preset) ? cost.usd * 1.1 : cost.usd;
       return { ...cost, usd, ...(approx ? { approx: true } : {}) };
@@ -136,7 +178,11 @@ const genjutsuLight = perSourceSecond(
   byResolution<[number, number]>({ "480p": [0.05, 0.1], "720p": [0.1, 0.2], "1080p": [0.2, 0.4] }),
   (seconds) => Math.min(seconds, 15),
 );
-const genjutsu = perSourceSecond(byResolution({ "480p": 0.318, "720p": 0.681, "1080p": 0.681 }));
+/* Sources past 30 seconds are trimmed. */
+const genjutsu = perSourceSecond(
+  byResolution({ "480p": 0.318, "720p": 0.681, "1080p": 0.681 }),
+  (seconds) => Math.min(seconds, 30),
+);
 
 const PRICING: Record<string, Pricer> = {
   /* ---------- video ---------- */
@@ -166,7 +212,8 @@ const PRICING: Record<string, Pricer> = {
   "seedance-2-fast": borrowed(seedance2),
   "seedance-2-mini": borrowed(seedance2),
   "kling-3-turbo": perSecond(byResolution({ "720p": 0.112, "1080p": 0.14 })),
-  "kling-3-std": perSecond(() => 0.084),
+  /* Text-to-video lists 0.084; image-to-video lists 0.084 and 0.126. */
+  "kling-3-std": perSecond(() => [0.084, 0.126]),
   "kling-3-pro": perSecond(() => [0.112, 0.168]),
   "kling-3-4k": perSecond(() => 0.42),
   /* The output runs as long as the motion video it copies. */
@@ -180,15 +227,14 @@ const PRICING: Record<string, Pricer> = {
   "cinema-studio-4": perSecond(byResolution({ "480p": 0.2056, "720p": 0.4622 })),
   "kling-2.5": perSecond(() => 0.042),
   "kling-2.5-pro": perSecond(() => 0.07),
-  /* Image reference and first/last frame; a video reference bills 0.126–0.168/s. */
-  "kling-o3": perSecond(byMode({ std: 0.084, pro: 0.112, "4k": 0.42 })),
-  "kling-o1": perSecond(byMode({ std: 0.084, pro: 0.112 })),
+  "kling-o3": klingOmni({ std: 0.084, pro: 0.112, "4k": 0.42 }, false),
+  "kling-o1": klingOmni({ std: 0.084, pro: 0.112 }, true),
   "kling-o3-edit": perSourceSecond(() => 0.126),
   "kling-o1-edit": perSourceSecond(() => 0.126),
   "wan-3": perSecond(byResolution({ "480p": 0.05, "720p": 0.1, "1080p": 0.2 })),
   "wan-3-prime": perSecond(byResolution({ "480p": 0.068, "720p": 0.14, "1080p": 0.28 })),
-  "wan-2.7": perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 })),
-  "wan-2.6": perSecond(byResolution({ "720p": 0.1, "1080p": 0.15 })),
+  "wan-2.7": wan2(["reference", "video"]),
+  "wan-2.6": wan2(["video"]),
   "happy-horse-1": perSecond(byResolution({ "720p": 0.14, "1080p": 0.28 })),
   "happy-horse-1.1": perSecond(byResolution({ "720p": 0.14, "1080p": 0.18 })),
   "minimax-h3": perSecond(() => 0.13),
@@ -209,11 +255,11 @@ const PRICING: Record<string, Pricer> = {
   "soul-standard": perResult({ "720p": 0.0938, "1080p": 0.1875 }, resolutionOf),
   /* Not on the console; Soul Standard's prices stand in. */
   "soul-cinema": borrowed(perResult({ "720p": 0.0938, "1080p": 0.1875 }, resolutionOf)),
-  /* Only three combinations are published; the preset mode costs 10% more but is not wired. */
-  "marketing-studio-image": marketingStudio(false),
+  /* 2.0 renders every preset at high quality. */
+  "marketing-studio-image": marketingStudio(false, true),
   /* The 2.5 versions publish only a range; 2.0's prices stand in. */
-  "marketing-studio-flare": marketingStudio(true),
-  "marketing-studio-sunburst": marketingStudio(true),
+  "marketing-studio-flare": marketingStudio(true, false),
+  "marketing-studio-sunburst": marketingStudio(true, false),
   /* Published as 1k at low quality and 2k at medium; the request sets no quality. */
   "grok-imagine-2": perResult({ "1k": 0.04, "2k": 0.08 }, resolutionOf),
   /* Not on the console: priced like Qwen Image 3. */
@@ -237,8 +283,22 @@ export function estimateCost(
   modelId: string,
   settings: Settings,
   sourceSeconds: number | null,
+  media: Attached = {},
 ): Cost | null {
-  return PRICING[modelId]?.price(settings, sourceSeconds) ?? null;
+  return PRICING[modelId]?.price(settings, sourceSeconds, media) ?? null;
+}
+
+/** What each second of source video adds, for a model priced from its source.
+    An extension's own duration is billed once on top, not per source second. */
+export function costPerSourceSecond(modelId: string, settings: Settings, media: Attached = {}): Cost | null {
+  const one = estimateCost(modelId, settings, 1, media);
+  const two = estimateCost(modelId, settings, 2, media);
+  if (!one || !two) return null;
+  return {
+    ...one,
+    usd: two.usd - one.usd,
+    ...(one.max === undefined || two.max === undefined ? {} : { max: two.max - one.max }),
+  };
 }
 
 /** Records written before ranges existed stored a bare number. */

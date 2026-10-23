@@ -29,12 +29,6 @@ export type GenerationStatus = {
   error?: unknown;
 };
 
-/** One request's answer inside a batched status poll. A request that errors
-    carries its reason alone, so it cannot lose the answers standing beside it. */
-export type StatusResult =
-  | { requestId: string; status: GenerationStatus }
-  | { requestId: string; error: string };
-
 export type PlatformClientOptions = {
   apiKey: string;
   baseUrl: string;
@@ -58,7 +52,12 @@ export function createPlatformClient(options: PlatformClientOptions) {
     "hf-secret": options.apiKey.slice(colon + 1),
   };
 
-  async function send(method: "GET" | "POST" | "DELETE", path: string, body?: Record<string, unknown>) {
+  async function send(
+    method: "GET" | "POST" | "DELETE",
+    path: string,
+    body?: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) {
     const url = `${baseUrl}${path}`;
     console.info("[platform] request", { method, url, body: body ?? null });
     const response = await fetchImpl(url, {
@@ -69,6 +68,7 @@ export function createPlatformClient(options: PlatformClientOptions) {
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
+      ...(signal ? { signal } : {}),
     });
 
     const payload = await readJson(response);
@@ -84,7 +84,11 @@ export function createPlatformClient(options: PlatformClientOptions) {
     },
     async status(requestId: string): Promise<GenerationStatus> {
       if (!requestId) throw new PlatformError(400, { detail: "Missing request id" });
-      return mapStatus(await send("GET", `/requests/${encodeURIComponent(requestId)}/status`));
+      /* A status check is safe to repeat, so a hung one is cut short rather
+         than holding the caller (and its function's time limit) hostage. */
+      return mapStatus(
+        await send("GET", `/requests/${encodeURIComponent(requestId)}/status`, undefined, AbortSignal.timeout(15_000)),
+      );
     },
     async get(path: string): Promise<unknown> {
       return send("GET", path);
