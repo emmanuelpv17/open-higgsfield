@@ -7,7 +7,7 @@ import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { createPlatformClient, type GenerationStatus } from "./platform";
 import { presetId } from "./presets";
 import { estimateCost, formatCost, pricedFromSource, scaleCost } from "./pricing";
-import { toPlatform } from "./to-platform";
+import { effectiveSettings, toPlatform } from "./to-platform";
 
 /* The studio's catalog and mappers, exposed to Claude as MCP tools. Every
    call runs on the deployment owner's key (OPEN_HIGGSFIELD_MCP_API_KEY), so
@@ -33,7 +33,7 @@ export function createStudioMcpServer(client: Client): McpServer {
     {
       title: "List models",
       description:
-        "Lists the image and video models available through the user's Higgsfield API key, with each model's accepted inputs, settings (allowed values and defaults) and an approximate price at default settings. Call this before generate to pick a model and valid settings.",
+        "Lists the image and video models available through the user's Higgsfield API key, with each model's accepted inputs, settings (allowed values and defaults) and an approximate price at default settings with nothing attached. What is attached can change the price and the duration sent (for example Kling O1 from a start frame renders 5 or 10 seconds, and a reference video caps Kling O1/O3 and Wan 2.6/2.7 at 10); generate reports the duration it sent. Call this before generate to pick a model and valid settings.",
       inputSchema: { surface: z.enum(["image", "video"]).optional().describe("Only image or only video models") },
       annotations: { readOnlyHint: true },
     },
@@ -187,10 +187,18 @@ export function createStudioMcpServer(client: Client): McpServer {
         )
       ).filter((problem): problem is string => problem !== null);
       if (problems.length) throw new Error(`${NOTHING_SPENT} ${problems.join(" ")}`);
-      const { path, body } = toPlatform({ model: model.id, prompt: { text: prompt.trim() }, media: items, settings: parsed });
+      const plane: GenerationPlane = { model: model.id, prompt: { text: prompt.trim() }, media: items, settings: parsed };
+      const { path, body } = toPlatform(plane);
       const queued = await client.submit(path, body);
+      /* What is attached can fit the duration to the endpoint; the cost and the
+         reply follow the length sent. */
+      const sent = effectiveSettings(plane);
+      const fitted =
+        sent.duration === parsed.duration
+          ? ""
+          : ` · duration sent ${sent.duration}s (asked ${parsed.duration}s; these inputs limit the lengths the endpoint takes)`;
       /* Prices are per result; Soul's batch size asks for several in one run. */
-      const perResult = estimateCost(model.id, parsed, null, items);
+      const perResult = estimateCost(model.id, sent, null, items);
       const cost = perResult ? scaleCost(perResult, Math.max(1, Number(parsed.batchSize) || 1)) : null;
       const costText = pricedFromSource(model.id)
         ? "billed per second of the source video"
@@ -211,7 +219,7 @@ export function createStudioMcpServer(client: Client): McpServer {
         }
         if (!["queued", "in_progress", "unknown"].includes(status.status)) break;
       }
-      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}`);
+      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`);
     },
   );
 

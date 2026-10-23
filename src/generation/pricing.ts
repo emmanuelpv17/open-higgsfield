@@ -106,9 +106,10 @@ const byMode =
   (settings: Settings): number | undefined =>
     table[String(settings.mode)];
 
-/* Priced on the endpoint mapKlingOmni picks: a start frame goes to first/last
-   frame, which Omni sells as 5s or 10s clips; a video, to video reference,
-   which renders std or pro for at most 10s and bills 0.126–0.168/s. */
+/* Priced on the endpoint mapKlingOmni picks, at the duration effectiveSettings
+   (to-platform) sends: a start frame goes to first/last frame, which Omni sells
+   as 5s or 10s clips; a video, to video reference, which renders std or pro
+   for at most 10s and bills 0.126–0.168/s. */
 const klingVideoReference = perSecond((settings) => (settings.mode === "std" ? 0.126 : 0.168));
 
 function klingOmni(rates: Record<string, number>, framesFiveOrTen: boolean): Pricer {
@@ -138,6 +139,11 @@ function wan2(referenceRoles: readonly MediaRole[]): Pricer {
         : base.price(settings, sourceSeconds, media),
   };
 }
+
+/* Text-to-video lists 0.084; image-to-video, sent when a start frame is
+   attached, lists 0.084 and 0.126. */
+const kling3StdText = perSecond(() => 0.084);
+const kling3StdImage = perSecond(() => [0.084, 0.126]);
 
 /* Seedance 2.0 is billed per 1,000 video tokens, seconds × width × height ×
    24 / 1024. Rates below are that per second at 16:9. */
@@ -212,8 +218,10 @@ const PRICING: Record<string, Pricer> = {
   "seedance-2-fast": borrowed(seedance2),
   "seedance-2-mini": borrowed(seedance2),
   "kling-3-turbo": perSecond(byResolution({ "720p": 0.112, "1080p": 0.14 })),
-  /* Text-to-video lists 0.084; image-to-video lists 0.084 and 0.126. */
-  "kling-3-std": perSecond(() => [0.084, 0.126]),
+  "kling-3-std": {
+    price: (settings, sourceSeconds, media) =>
+      (has(media, "start") ? kling3StdImage : kling3StdText).price(settings, sourceSeconds, media),
+  },
   "kling-3-pro": perSecond(() => [0.112, 0.168]),
   "kling-3-4k": perSecond(() => 0.42),
   /* The output runs as long as the motion video it copies. */

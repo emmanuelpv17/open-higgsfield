@@ -12,7 +12,13 @@ export function parseSettings(
   for (const [key, field] of Object.entries(model.settings)) {
     const value = raw[key];
     if (field.type === "enum") {
-      const picked = typeof value === "string" ? value : field.default;
+      /* A setting that has since become an enum ("5", "10") was saved as a number. */
+      const picked =
+        typeof value === "string"
+          ? value
+          : typeof value === "number" && Number.isFinite(value)
+            ? String(value)
+            : field.default;
       if (field.values.includes(picked)) out[key] = picked;
       else if (strict) throw new Error(`Invalid ${key}`);
       else out[key] = field.default;

@@ -77,7 +77,30 @@ export function toPlatform(plane: GenerationPlane): Mapped {
   if (!map) throw new Error(`No platform map for ${plane.model}`);
   const missing = model.requires?.find((role) => !plane.media[role]?.length);
   if (missing) throw new Error(`${model.label} necesita ${REQUIRED_LABEL[missing]}`);
-  return map(plane);
+  /* Mappers get the duration already fitted to the endpoint they pick. */
+  return map({ ...plane, settings: effectiveSettings(plane) });
+}
+
+/** The settings a run is sent with. Some endpoints, picked by what is
+    attached, take only part of the duration range; the run should be
+    recorded, badged and priced at the length it renders, not the slider's. */
+export function effectiveSettings(plane: GenerationPlane): Record<string, unknown> {
+  const { model, settings, media } = plane;
+  const start = Boolean(media.start?.length);
+  const videos = Boolean(media.video?.length);
+  const refs = Boolean(media.reference?.length);
+  const seconds = Number(settings.duration);
+  const withDuration = (duration: unknown) => ({ ...settings, duration });
+  /* Omni's first-last-frame sells 5s and 10s clips only; the nearer one is sent. */
+  if (model === "kling-o1" && start) return withDuration(seconds <= 7 ? 5 : 10);
+  /* A video reference, on O3 or Omni, renders for at most 10 seconds. */
+  if ((model === "kling-o3" || model === "kling-o1") && !start && videos) {
+    return withDuration(Math.min(seconds, 10));
+  }
+  /* Wan's reference-to-video runs at most 10 seconds; 2.6 keeps its enum value. */
+  if (model === "wan-2.7" && !start && (refs || videos)) return withDuration(Math.min(seconds, 10));
+  if (model === "wan-2.6" && !start && videos && seconds > 10) return withDuration("10");
+  return settings;
 }
 
 function urls(plane: GenerationPlane, role: "start" | "end" | "reference" | "video" | "audio") {
@@ -208,7 +231,6 @@ function mapWan27(plane: GenerationPlane): Mapped {
       path: "wan/v2.7/reference-to-video",
       body: {
         ...shared,
-        duration: Math.min(Number(plane.settings.duration), 10),
         aspect_ratio: plane.settings.aspectRatio === "9:16" ? "9:16" : "16:9",
         ...(refs.length ? { image_urls: refs } : {}),
         ...(videos.length ? { video_urls: videos } : {}),
@@ -230,7 +252,7 @@ function mapWan26(plane: GenerationPlane): Mapped {
   if (videos.length) {
     return {
       path: "wan/v2.6/reference-to-video",
-      body: { ...shared, duration: Math.min(shared.duration, 10), video_urls: videos.slice(0, 3) },
+      body: { ...shared, video_urls: videos.slice(0, 3) },
     };
   }
   return { path: "wan/v2.6/text-to-video", body: shared };
@@ -359,14 +381,12 @@ function mapKlingOmni(plane: GenerationPlane, prefix: string): Mapped {
     aspect_ratio: plane.settings.aspectRatio,
   };
   if (start) {
-    /* Omni's first-last-frame sells 5s and 10s clips only; the nearer one is sent. */
-    const duration = Number(plane.settings.duration);
     return {
       path: `${prefix}/first-last-frame`,
       body: {
         ...shared,
         mode: plane.settings.mode,
-        duration: prefix === "kling-video/omni" ? (duration <= 7 ? 5 : 10) : plane.settings.duration,
+        duration: plane.settings.duration,
         ...sound(plane),
         first_frame_url: start,
         ...(end ? { last_frame_url: end } : {}),
@@ -380,7 +400,7 @@ function mapKlingOmni(plane: GenerationPlane, prefix: string): Mapped {
       body: {
         ...shared,
         mode: plane.settings.mode === "std" ? "std" : "pro",
-        duration: Math.min(Number(plane.settings.duration), 10),
+        duration: Number(plane.settings.duration),
         video_urls: [video],
         ...(refs.length ? { image_urls: refs } : {}),
       },

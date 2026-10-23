@@ -14,13 +14,39 @@ for (const [net, prefix] of [
   ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
   ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["224.0.0.0", 3],
 ] as const) BLOCKED.addSubnet(net, prefix, "ipv4");
-for (const [net, prefix] of [["::", 96], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8]] as const) {
-  BLOCKED.addSubnet(net, prefix, "ipv6");
-}
+for (const [net, prefix] of [
+  ["::", 96], ["64:ff9b:1::", 48], ["fc00::", 7], ["fe80::", 10], ["fec0::", 10], ["ff00::", 8],
+] as const) BLOCKED.addSubnet(net, prefix, "ipv6");
 const MAX_REDIRECTS = 5;
 
 function blocked(address: string): boolean {
-  return BLOCKED.check(address, isIP(address) === 6 ? "ipv6" : "ipv4");
+  if (isIP(address) !== 6) return BLOCKED.check(address, "ipv4");
+  const embedded = embeddedIPv4(address);
+  return BLOCKED.check(address, "ipv6") || (embedded !== null && BLOCKED.check(embedded, "ipv4"));
+}
+
+/* NAT64 (64:ff9b::/96) and 6to4 (2002::/16) addresses carry an IPv4 address
+   that a gateway forwards to, so that address is held to the IPv4 rules.
+   Blocking the ranges outright would refuse every IPv4-only host behind
+   DNS64, where each one only resolves to a 64:ff9b:: address. */
+function embeddedIPv4(address: string): string | null {
+  const groups = (part = "") =>
+    part.split(":").filter(Boolean).flatMap((group) => {
+      if (!group.includes(".")) return [parseInt(group, 16)];
+      const [a, b, c, d] = group.split(".").map(Number);
+      return [(a << 8) | b, (c << 8) | d];
+    });
+  const [head, tail] = address.split("::");
+  const left = groups(head);
+  const right = groups(tail);
+  const words = [...left, ...new Array<number>(8 - left.length - right.length).fill(0), ...right];
+  const pair =
+    words[0] === 0x64 && words[1] === 0xff9b && words.slice(2, 6).every((word) => word === 0)
+      ? [words[6], words[7]]
+      : words[0] === 0x2002
+        ? [words[1], words[2]]
+        : null;
+  return pair && pair.flatMap((word) => [word >> 8, word & 0xff]).join(".");
 }
 
 /* The default lookup, refusing a name with any blocked address. The socket

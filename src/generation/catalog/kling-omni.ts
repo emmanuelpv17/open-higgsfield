@@ -2,8 +2,9 @@ import type { ModelEntry } from "./types";
 
 /* Kling O3 and Kling Omni (O1) share one request shape across four endpoints.
    The studio picks the endpoint from what is attached: a start frame goes to
-   first-last-frame, a video to video-reference, anything else to
-   image-reference (whose images are optional, so a bare prompt works too).
+   first-last-frame, a video to video-reference (at most 10 seconds), anything
+   else to image-reference (whose images are optional, so a bare prompt works
+   too).
    Editing a video is its own entry, since it takes the same attachments as a
    video reference but rewrites the clip rather than borrowing from it. */
 const omniSettings = {
@@ -23,7 +24,8 @@ export const klingO3: ModelEntry = {
   settings: omniSettings,
 };
 
-/** Omni renders std or pro only, for 3–10 seconds, without native audio. */
+/** Omni renders std or pro only, for 3–10 seconds, without native audio.
+    From a start frame it sells 5s or 10s clips: the nearer one is sent. */
 export const klingO1: ModelEntry = {
   id: "kling-o1",
   surface: "video",
