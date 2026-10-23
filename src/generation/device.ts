@@ -34,6 +34,10 @@ export function blobPathname(deviceId: string, filename: string): string {
 
 function sanitizeFilename(filename: string): string {
   const base = filename.replaceAll("\\", "/").split("/").pop() ?? "";
-  const cleaned = base.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^\.+/, "");
-  return cleaned.slice(0, 180) || "file";
+  const cleaned = base.replace(/[^A-Za-z0-9._-]+/g, "_");
+  /* The extension decides the upload's limits and content type, so only the
+     stem is trimmed and a bare ".mp4" keeps its dot. */
+  const ext = cleaned.match(/\.[A-Za-z0-9]{1,8}$/)?.[0] ?? "";
+  const stem = cleaned.slice(0, cleaned.length - ext.length).replace(/^\.+/, "").slice(0, 170);
+  return (stem || "file") + ext;
 }

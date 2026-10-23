@@ -33,22 +33,32 @@ function isFresh(row: UploadRecord): boolean {
   return row.createdAt > Date.now() - UPLOAD_RETENTION_MS;
 }
 
+/* Ids this tab last saved. Another tab writes the same store, so a save merges
+   into what is there: a row this tab dropped since its last save is removed,
+   and a row only the other tab knows about is kept. */
+let saved = new Set<string>();
+
 export async function saveUploads(
   records: UploadRecord[],
   kv: Kv = defaultKv(),
   legacy: LegacyStore | undefined = browserLegacy(),
 ): Promise<void> {
-  const next = records
+  const mine = records
     .map(coerceUpload)
     .filter((row): row is UploadRecord => row !== null)
     .slice(0, MAX_RECORDS);
+  const ids = new Set(mine.map((row) => row.id));
+  const removed = new Set([...saved].filter((id) => !ids.has(id)));
+  saved = ids;
+  const kept = (stored: UploadRecord[]) => stored.filter((row) => !removed.has(row.id));
+  let next = mine;
   try {
-    await kv.set(UPLOADS_KEY, next);
+    next = await kv.update(UPLOADS_KEY, (stored) => mergeUploads(kept(storedUploads(stored)), mine));
   } catch {
     /* private mode or a denied store */
   }
   try {
-    legacy?.setItem(LEGACY_UPLOADS_KEY, JSON.stringify(next));
+    legacy?.setItem(LEGACY_UPLOADS_KEY, JSON.stringify(mergeUploads(kept(readLegacy(legacy)), next)));
   } catch {
     /* quota or a denied store */
   }
@@ -65,15 +75,18 @@ export function mergeUploads(stored: UploadRecord[], live: UploadRecord[]): Uplo
 
 async function readIdb(kv: Kv): Promise<UploadRecord[]> {
   try {
-    const stored = await kv.get<unknown>(UPLOADS_KEY);
-    if (!Array.isArray(stored)) return [];
-    return stored
-      .map(coerceUpload)
-      .filter((row): row is UploadRecord => row !== null)
-      .slice(0, MAX_RECORDS);
+    return storedUploads(await kv.get<unknown>(UPLOADS_KEY));
   } catch {
     return [];
   }
+}
+
+function storedUploads(stored: unknown): UploadRecord[] {
+  if (!Array.isArray(stored)) return [];
+  return stored
+    .map(coerceUpload)
+    .filter((row): row is UploadRecord => row !== null)
+    .slice(0, MAX_RECORDS);
 }
 
 function readLegacy(legacy: LegacyStore | undefined): UploadRecord[] {

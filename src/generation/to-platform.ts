@@ -30,6 +30,7 @@ const MAP: Record<string, Mapper> = {
   "kling-o1-edit": (plane) => mapKlingOmniEdit(plane, "kling-video/omni/video-edit"),
   "kling-2.5": (plane) => mapKling25(plane, "kling-video/v2.5-turbo/standard", false),
   "kling-2.5-pro": (plane) => mapKling25(plane, "kling-video/v2.5-turbo/pro", true),
+  "kling-2.6": mapKling26,
   "kling-2.6-motion-std": (plane) => mapKlingMotion(plane, "kling-video/motion-control/std"),
   "kling-2.6-motion-pro": (plane) => mapKlingMotion(plane, "kling-video/motion-control/pro"),
   "recraft-4.1": (plane) => mapRecraft(plane, "recraft/v4.1/text-to-image", "recraft/v4.1/pro/text-to-image"),
@@ -76,7 +77,30 @@ export function toPlatform(plane: GenerationPlane): Mapped {
   if (!map) throw new Error(`No platform map for ${plane.model}`);
   const missing = model.requires?.find((role) => !plane.media[role]?.length);
   if (missing) throw new Error(`${model.label} necesita ${REQUIRED_LABEL[missing]}`);
-  return map(plane);
+  /* Mappers get the duration already fitted to the endpoint they pick. */
+  return map({ ...plane, settings: effectiveSettings(plane) });
+}
+
+/** The settings a run is sent with. Some endpoints, picked by what is
+    attached, take only part of the duration range; the run should be
+    recorded, badged and priced at the length it renders, not the slider's. */
+export function effectiveSettings(plane: GenerationPlane): Record<string, unknown> {
+  const { model, settings, media } = plane;
+  const start = Boolean(media.start?.length);
+  const videos = Boolean(media.video?.length);
+  const refs = Boolean(media.reference?.length);
+  const seconds = Number(settings.duration);
+  const withDuration = (duration: unknown) => ({ ...settings, duration });
+  /* Omni's first-last-frame sells 5s and 10s clips only; the nearer one is sent. */
+  if (model === "kling-o1" && start) return withDuration(seconds <= 7 ? 5 : 10);
+  /* A video reference, on O3 or Omni, renders for at most 10 seconds. */
+  if ((model === "kling-o3" || model === "kling-o1") && !start && videos) {
+    return withDuration(Math.min(seconds, 10));
+  }
+  /* Wan's reference-to-video runs at most 10 seconds; 2.6 keeps its enum value. */
+  if (model === "wan-2.7" && !start && (refs || videos)) return withDuration(Math.min(seconds, 10));
+  if (model === "wan-2.6" && !start && videos && seconds > 10) return withDuration("10");
+  return settings;
 }
 
 function urls(plane: GenerationPlane, role: "start" | "end" | "reference" | "video" | "audio") {
@@ -207,7 +231,6 @@ function mapWan27(plane: GenerationPlane): Mapped {
       path: "wan/v2.7/reference-to-video",
       body: {
         ...shared,
-        duration: Math.min(Number(plane.settings.duration), 10),
         aspect_ratio: plane.settings.aspectRatio === "9:16" ? "9:16" : "16:9",
         ...(refs.length ? { image_urls: refs } : {}),
         ...(videos.length ? { video_urls: videos } : {}),
@@ -229,7 +252,7 @@ function mapWan26(plane: GenerationPlane): Mapped {
   if (videos.length) {
     return {
       path: "wan/v2.6/reference-to-video",
-      body: { ...shared, duration: Math.min(shared.duration, 10), video_urls: videos.slice(0, 3) },
+      body: { ...shared, video_urls: videos.slice(0, 3) },
     };
   }
   return { path: "wan/v2.6/text-to-video", body: shared };
@@ -377,7 +400,7 @@ function mapKlingOmni(plane: GenerationPlane, prefix: string): Mapped {
       body: {
         ...shared,
         mode: plane.settings.mode === "std" ? "std" : "pro",
-        duration: Math.min(Number(plane.settings.duration), 10),
+        duration: Number(plane.settings.duration),
         video_urls: [video],
         ...(refs.length ? { image_urls: refs } : {}),
       },
@@ -412,6 +435,13 @@ function mapKlingOmniEdit(plane: GenerationPlane, path: string): Mapped {
       ...(refs.length ? { image_urls: refs } : {}),
     },
   };
+}
+
+/** Kling 2.6 takes its catalog paths; its 5s or 10s duration is an enum the
+    shared map would not forward, so it is sent as a number. */
+function mapKling26(plane: GenerationPlane): Mapped {
+  const settings = { ...plane.settings, duration: Number(plane.settings.duration) };
+  return mapByPaths({ ...plane, settings }, getModel(plane.model).paths!);
 }
 
 /** Standard only animates a start frame; Pro also renders from a prompt alone. */
@@ -497,12 +527,13 @@ function mapGenjutsuRestyle(plane: GenerationPlane): Mapped {
   const video = urls(plane, "video")[0];
   const refs = urls(plane, "reference").slice(0, 5);
   const preset = presetId(plane.settings.preset);
+  if (!preset) throw new Error("Genjutsu Restyle necesita un estilo: elige uno en Estilo");
   return {
     path: "higgsfield/genjutsu/restyle/v1.0",
     body: {
       prompt: plane.prompt.text,
       resolution: plane.settings.resolution,
-      ...(preset ? { preset_id: preset } : {}),
+      preset_id: preset,
       ...(video ? { video_url: video } : {}),
       image_urls: refs,
     },

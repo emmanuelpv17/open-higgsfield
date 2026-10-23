@@ -182,10 +182,13 @@ export function AssetPicker({
   };
 
   const empty = emptyCopy(shelf, kind);
-  const canUpload = room > 0 && !uploading;
+  /* A single slot swaps rather than fills: picking or uploading another file
+     replaces the one attached, so a full slot never blocks the change. */
+  const swaps = max === 1;
+  const canUpload = (room > 0 || swaps) && !uploading;
   const uploadTip = uploading
     ? "Subiendo…"
-    : room > 0
+    : room > 0 || swaps
       ? `Subir ${roleNoun(role, 1, model)} desde este dispositivo`
       : `No queda espacio para más ${roleNoun(role, 2, model)} — quita uno para liberar espacio`;
 
@@ -312,7 +315,7 @@ export function AssetPicker({
                   key={asset.url}
                   asset={asset}
                   picked={on}
-                  blocked={!on && room === 0}
+                  blocked={!on && room === 0 && !swaps}
                   onToggle={toggle}
                 />
               );

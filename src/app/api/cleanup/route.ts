@@ -3,11 +3,14 @@ import { NextResponse } from "next/server";
 
 import { UPLOAD_RETENTION_MS } from "@/generation/retention";
 
-/* Run daily by Vercel Cron (vercel.json). With CRON_SECRET set, Vercel sends it
-   as a bearer token and nothing else gets in; without it, only the cron's own
-   user agent is let through. Either way it only ever removes expired uploads. */
+/* Run daily by Vercel Cron (vercel.json). Vercel sends CRON_SECRET as a bearer
+   token and nothing else gets in; without it set the route refuses everyone,
+   since any client can claim the cron's user agent. It only ever removes
+   expired uploads. */
 export async function GET(request: Request): Promise<NextResponse> {
-  if (!authorized(request)) return new NextResponse(null, { status: 401 });
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ error: "Missing CRON_SECRET" }, { status: 500 });
+  if (request.headers.get("authorization") !== `Bearer ${secret}`) return new NextResponse(null, { status: 401 });
 
   const token = process.env.OPEN_HIGGSFIELD_READ_WRITE_TOKEN;
   if (!token) return NextResponse.json({ error: "Missing OPEN_HIGGSFIELD_READ_WRITE_TOKEN" }, { status: 500 });
@@ -31,10 +34,4 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   console.info("[cleanup] uploads", { scanned, deleted });
   return NextResponse.json({ scanned, deleted });
-}
-
-function authorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (secret) return request.headers.get("authorization") === `Bearer ${secret}`;
-  return (request.headers.get("user-agent") ?? "").startsWith("vercel-cron");
 }

@@ -1,12 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole } from "./catalog";
-import { encodeTraits } from "./influencer";
+import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole, type ModelEntry } from "./catalog";
+import { encodeTraits, selectionFor } from "./influencer";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { createPlatformClient, type GenerationStatus } from "./platform";
-import { estimateCost, formatCost, pricedFromSource } from "./pricing";
-import { toPlatform } from "./to-platform";
+import { presetId } from "./presets";
+import { estimateCost, formatCost, pricedFromSource, scaleCost } from "./pricing";
+import { effectiveSettings, toPlatform } from "./to-platform";
 
 /* The studio's catalog and mappers, exposed to Claude as MCP tools. Every
    call runs on the deployment owner's key (OPEN_HIGGSFIELD_MCP_API_KEY), so
@@ -15,11 +16,14 @@ import { toPlatform } from "./to-platform";
 type Client = ReturnType<typeof createPlatformClient>;
 
 const ROLES: readonly MediaRole[] = ["start", "end", "reference", "video", "audio"];
-/* A generation call waits this long for the result before handing back the
-   request id; the function itself is capped at 60 seconds. */
-const WAIT_MS = 45_000;
+/* A generation call waits this long, counted from the start of the call (link
+   checks and submit included), before handing back the request id; the
+   function itself is capped at 60 seconds. */
+const WAIT_MS = 38_000;
+const POLL_MS = 3000;
 /* Images up to this size are sent inline so the chat can show them. */
 const INLINE_IMAGE_BYTES = 900_000;
+const NOTHING_SPENT = "No se envió nada a Higgsfield (no se gastó saldo).";
 
 export function createStudioMcpServer(client: Client): McpServer {
   const server = new McpServer({ name: "open-higgsfield", version: "1.0.0" });
@@ -29,7 +33,7 @@ export function createStudioMcpServer(client: Client): McpServer {
     {
       title: "List models",
       description:
-        "Lists the image and video models available through the user's Higgsfield API key, with each model's accepted inputs, settings (allowed values and defaults) and an approximate price at default settings. Call this before generate to pick a model and valid settings.",
+        "Lists the image and video models available through the user's Higgsfield API key, with each model's accepted inputs, settings (allowed values and defaults) and an approximate price at default settings with nothing attached. What is attached can change the price and the duration sent (for example Kling O1 from a start frame renders 5 or 10 seconds, and a reference video caps Kling O1/O3 and Wan 2.6/2.7 at 10); generate reports the duration it sent. Call this before generate to pick a model and valid settings.",
       inputSchema: { surface: z.enum(["image", "video"]).optional().describe("Only image or only video models") },
       annotations: { readOnlyHint: true },
     },
@@ -59,7 +63,7 @@ export function createStudioMcpServer(client: Client): McpServer {
                     ? { type: "boolean", default: field.default }
                     : field.type === "preset"
                       ? { type: "id from list_options", source: field.source, default: "" }
-                      : { type: "object of category -> option keys, from list_options ai-influencer-appearance" },
+                      : { type: "object of category -> option key or array of option keys, from list_options ai-influencer-appearance" },
             ]),
           ),
           approxPriceAtDefaults: pricedFromSource(model.id)
@@ -137,7 +141,7 @@ export function createStudioMcpServer(client: Client): McpServer {
     {
       title: "Generate image or video",
       description:
-        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs must be public URLs (for example results of earlier generations, or files the user attached uploaded to a temporary host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~45 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
+        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs must be public https URLs (for example results of earlier generations, or files the user attached uploaded to a temporary host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
       inputSchema: {
         model: z.string().describe("Model id from list_models"),
         prompt: z.string().max(10000).default("").describe("What to generate"),
@@ -154,20 +158,24 @@ export function createStudioMcpServer(client: Client): McpServer {
       },
     },
     async ({ model: modelId, prompt, settings, media }) => {
+      const deadline = Date.now() + WAIT_MS;
       const model = getModel(modelId);
       if (!model.promptOptional && !prompt.trim()) throw new Error(`${model.label} needs a prompt`);
-      const raw: Record<string, unknown> = { ...(settings ?? {}) };
-      if (raw.traits && typeof raw.traits === "object") {
-        raw.traits = encodeTraits({
-          tier: typeof raw.tier === "string" ? raw.tier : "normal",
-          selection: raw.traits as Record<string, string[]>,
-        });
+      const raw = checkSettings(model, settings ?? {});
+      const parsed = parseSettings(model, raw, { strict: true });
+      /* Picks that would all be dropped on the way out leave a random character. */
+      if (raw.traits && !selectionFor(parsed.traits, String(parsed.tier))) {
+        throw new Error(`${NOTHING_SPENT} Ninguna elección de traits se puede usar para el tipo '${parsed.tier}'; revisa list_options ai-influencer-appearance.`);
       }
-      const parsed = parseSettings(model, raw);
       const items: GenerationPlane["media"] = {};
       for (const role of ROLES) {
         const value = media?.[role];
-        const urls = (Array.isArray(value) ? value : value ? [value] : []).slice(0, model.roles[role] ?? 0);
+        const urls = Array.isArray(value) ? value : value ? [value] : [];
+        const max = model.roles[role] ?? 0;
+        if (urls.length > max) {
+          const accepted = Object.entries(model.roles).map(([name, count]) => `${name} (máx. ${count})`).join(", ") || "ninguno";
+          throw new Error(`${NOTHING_SPENT} ${model.label} acepta ${max} archivo(s) en '${role}'; roles aceptados: ${accepted}.`);
+        }
         if (urls.length) {
           items[role] = urls.map((url, index) => ({ id: `${role}-${index}`, url: directMediaUrl(url), role }));
         }
@@ -178,24 +186,40 @@ export function createStudioMcpServer(client: Client): McpServer {
           Object.entries(items).flatMap(([role, list]) => (list ?? []).map((item) => checkMediaUrl(item.url, role))),
         )
       ).filter((problem): problem is string => problem !== null);
-      if (problems.length) throw new Error(`No se envió nada a Higgsfield (no se gastó saldo). ${problems.join(" ")}`);
-      const { path, body } = toPlatform({ model: model.id, prompt: { text: prompt.trim() }, media: items, settings: parsed });
+      if (problems.length) throw new Error(`${NOTHING_SPENT} ${problems.join(" ")}`);
+      const plane: GenerationPlane = { model: model.id, prompt: { text: prompt.trim() }, media: items, settings: parsed };
+      const { path, body } = toPlatform(plane);
       const queued = await client.submit(path, body);
-      const cost = estimateCost(model.id, parsed, null);
+      /* What is attached can fit the duration to the endpoint; the cost and the
+         reply follow the length sent. */
+      const sent = effectiveSettings(plane);
+      const fitted =
+        sent.duration === parsed.duration
+          ? ""
+          : ` · duration sent ${sent.duration}s (asked ${parsed.duration}s; these inputs limit the lengths the endpoint takes)`;
+      /* Prices are per result; Soul's batch size asks for several in one run. */
+      const perResult = estimateCost(model.id, sent, null, items);
+      const cost = perResult ? scaleCost(perResult, Math.max(1, Number(parsed.batchSize) || 1)) : null;
       const costText = pricedFromSource(model.id)
         ? "billed per second of the source video"
         : cost
           ? formatCost(cost)
           : "unknown";
 
-      const deadline = Date.now() + WAIT_MS;
+      /* The run is paid for from here on, so nothing may keep its request id
+         from reaching Claude: a failed status check ends the wait, and the
+         last poll cannot run past the deadline. */
       let status: GenerationStatus | null = null;
-      while (Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        status = await client.status(queued.requestId);
+      while (Date.now() + POLL_MS < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        try {
+          status = await client.status(queued.requestId);
+        } catch {
+          break;
+        }
         if (!["queued", "in_progress", "unknown"].includes(status.status)) break;
       }
-      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}`);
+      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`);
     },
   );
 
@@ -234,6 +258,57 @@ function text(value: string) {
   return { content: [{ type: "text" as const, text: value }] };
 }
 
+/* Claude's settings, checked before anything is spent. The studio lets a
+   stale stored value fall back to its default; here a value that would be
+   ignored (unknown key, wrong type, a style name instead of its id) is
+   refused instead. A number for an enum value ("10") or a numeric string for
+   a range is converted, since both read the same to Claude. */
+function checkSettings(model: ModelEntry, settings: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const refuse = (key: string, expected: string) =>
+    new Error(`${NOTHING_SPENT} Valor no válido para '${key}' en ${model.label}: se esperaba ${expected}.`);
+  for (const [key, value] of Object.entries(settings)) {
+    const field = model.settings[key];
+    if (!field) {
+      const valid = Object.keys(model.settings).join(", ") || "ninguno";
+      throw new Error(`${NOTHING_SPENT} ${model.label} no tiene el ajuste '${key}'; ajustes válidos: ${valid}.`);
+    }
+    if (value === undefined || value === null) continue;
+    if (field.type === "enum") {
+      const picked = typeof value === "number" ? String(value) : value;
+      if (typeof picked !== "string" || !field.values.includes(picked)) throw refuse(key, `uno de ${field.values.join(", ")}`);
+      out[key] = picked;
+    } else if (field.type === "range") {
+      const picked = typeof value === "string" && value.trim() ? Number(value) : value;
+      if (typeof picked !== "number" || !(picked >= field.min && picked <= field.max)) {
+        throw refuse(key, `un número entre ${field.min} y ${field.max}`);
+      }
+      out[key] = picked;
+    } else if (field.type === "boolean") {
+      if (typeof value !== "boolean") throw refuse(key, "true o false");
+      out[key] = value;
+    } else if (field.type === "preset") {
+      if (typeof value !== "string" || (value && !presetId(value))) throw refuse(key, "el id que da list_options");
+      out[key] = value;
+    } else if (typeof value === "string") {
+      out[key] = value;
+    } else {
+      /* AI Influencer traits: one option key or a list of them per category. */
+      if (typeof value !== "object" || Array.isArray(value)) throw refuse(key, "un objeto categoría -> clave(s) de opción");
+      const selection: Record<string, string[]> = {};
+      for (const [category, picks] of Object.entries(value as Record<string, unknown>)) {
+        const list = typeof picks === "string" ? [picks] : picks;
+        if (!Array.isArray(list) || !list.every((pick) => typeof pick === "string")) {
+          throw refuse(`${key}.${category}`, "una clave de opción o una lista de claves");
+        }
+        if (list.length) selection[category] = list;
+      }
+      out[key] = encodeTraits({ tier: typeof settings.tier === "string" ? settings.tier : "normal", selection });
+    }
+  }
+  return out;
+}
+
 async function report(requestId: string, status: GenerationStatus | null, heading: string) {
   const state = status?.status ?? "queued";
   const lines = [heading, `request_id: ${requestId}`, `status: ${state}`].filter(Boolean);
@@ -241,10 +316,8 @@ async function report(requestId: string, status: GenerationStatus | null, headin
   if (state === "completed") {
     const urls = [...(status?.images ?? []).map((image) => image.url), ...(status?.video ? [status.video.url] : [])];
     lines.push(...urls.map((url) => `result: ${url}`));
-    for (const url of (status?.images ?? []).map((image) => image.url).slice(0, 4)) {
-      const inline = await inlineImage(url);
-      if (inline) content.push(inline);
-    }
+    const inline = await Promise.all((status?.images ?? []).slice(0, 4).map((image) => inlineImage(image.url)));
+    content.push(...inline.filter((item): item is Content => item !== null));
     lines.push("Share the result links with the user; links from the platform expire after a while, so suggest downloading.");
   } else if (state === "queued" || state === "in_progress") {
     lines.push("Still rendering. Call check_generation with this request_id in a little while.");
@@ -256,9 +329,11 @@ async function report(requestId: string, status: GenerationStatus | null, headin
   return { content: [{ type: "text" as const, text: lines.join("\n") }, ...content] };
 }
 
+/* Inlining is a nicety; it gets a few seconds so the reply with the request id
+   still lands inside the function's time cap. */
 async function inlineImage(url: string): Promise<Content | null> {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!response.ok) return null;
     const type = response.headers.get("content-type") ?? "";
     if (!type.startsWith("image/")) return null;

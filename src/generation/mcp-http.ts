@@ -6,6 +6,10 @@ import { createPlatformClient } from "./platform";
 /** Answers one MCP request on the given Higgsfield key. Stateless: a fresh
     server and transport per request, answered as JSON. */
 export async function serveMcp(request: Request, apiKey: string): Promise<Response> {
+  /* Without sessions there is no stream to hold open on GET: an empty one
+     that closes at once makes clients reconnect every second, while 405
+     tells them there is none. */
+  if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "POST" } });
   const baseUrl = process.env.HF_API_BASE_URL;
   if (!baseUrl) return new Response("Missing HF_API_BASE_URL", { status: 500 });
   const client = createPlatformClient({ apiKey, baseUrl });

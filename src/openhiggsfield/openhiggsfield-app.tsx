@@ -1,5 +1,6 @@
 "use client";
 
+import { unstable_isUnrecognizedActionError } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { cancelGeneration, hasPlatformCredentials, submitGeneration } from "@/generation/actions";
@@ -10,7 +11,15 @@ import { videoSeconds } from "@/generation/cost";
 import { estimateCost, pricedFromSource, type Cost } from "@/generation/pricing";
 import { assemblePlane } from "@/generation/plane";
 import type { GenerationStatus } from "@/generation/platform";
-import { POLL_DEADLINE_MS, stopWatching, watchRequest } from "@/generation/poll";
+import {
+  KeyRefused,
+  Overdue,
+  StaleBuild,
+  WatchInterrupted,
+  isWatching,
+  stopWatching,
+  watchRequest,
+} from "@/generation/poll";
 import { useActive } from "@/generation/stores/active";
 import { useImagePrompt, useVideoPrompt } from "@/generation/stores/prompt";
 import { useSettings } from "@/generation/stores/settings";
@@ -28,7 +37,17 @@ import {
   type GalleryView,
 } from "./data";
 import { Gallery } from "./gallery";
-import { loadHistory, mergeHistory, replaceRequest, saveHistory, stepRun, type RunRecord } from "./history";
+import {
+  adoptHistory,
+  loadHistory,
+  mergeHistory,
+  replaceRequest,
+  requestIdOf,
+  saveHistory,
+  stepRun,
+  subscribeHistory,
+  type RunRecord,
+} from "./history";
 import { CloseIcon, UndoIcon } from "./icons";
 import { SelectionBar, type SaveProgress } from "./selection-bar";
 import { Topbar } from "./topbar";
@@ -36,6 +55,14 @@ import { Viewer } from "./viewer";
 
 /* Long enough to read the bar and reach it; the drain line states the window. */
 const UNDO_MS = 6000;
+/* An interrupted watch is asked about again after this long, so a dropped
+   connection or an outage on Higgsfield's side clears without leaving the tab.
+   A redeploy does not: that tab is asked to reload. */
+const RESUME_RETRY_MS = 30_000;
+/* A run the platform keeps answering about without ever ending is written off
+   this long after its submit, so its tile can be deleted rather than spin for
+   good. Long enough for the slowest paid render. */
+const MAX_RUN_AGE_MS = 6 * 60 * 60_000;
 
 export interface ActiveRun {
   /** Identifies the skeleton this run occupies, so a batch clears one tile at
@@ -65,7 +92,7 @@ type RunDraft = {
 async function costOf(model: ModelEntry, plane: GenerationPlane): Promise<Cost | undefined> {
   const source = pricedFromSource(model.id) ? plane.media.video?.[0]?.url : undefined;
   const seconds = source ? await videoSeconds(source) : null;
-  return estimateCost(model.id, plane.settings, seconds) ?? undefined;
+  return estimateCost(model.id, plane.settings, seconds, plane.media) ?? undefined;
 }
 
 function hueOf(seed: string): number {
@@ -165,6 +192,9 @@ function failureText(status: GenerationStatus): string {
 }
 
 function describeError(caught: unknown): string {
+  if (unstable_isUnrecognizedActionError(caught)) {
+    return "Hay una versión nueva de la app. Recarga la página y vuelve a generar.";
+  }
   const message = caught instanceof Error ? caught.message : String(caught);
   if (caught instanceof MissingCredentialsError || message.includes("Falta tu clave API")) {
     return "Agrega tu clave API para generar.";
@@ -207,6 +237,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const freshTimers = useRef<number[]>([]);
   const historyRef = useRef(history);
   historyRef.current = history;
+  const resumeRunningRef = useRef(() => {});
 
   /* The model picker can cross surfaces, so the scope follows it — unless the
      visitor parked on a scope that spans both. */
@@ -234,6 +265,27 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   useEffect(() => {
     if (historyLoaded) void saveHistory(history);
   }, [historyLoaded, history]);
+  /* Another tab's runs, finishes, edits and deletions, so this tab's next save
+     does not carry a stale picture of them. A deletion is passed on to the
+     store again, in case a save from here wrote the row back in between. A
+     running row taken in gets a watch here too: the tab that started it may
+     close before it ends. */
+  useEffect(
+    () =>
+      subscribeHistory((rows, removed) => {
+        setHistory((current) => {
+          const next = adoptHistory(current, rows, removed);
+          if (next !== current && removed.length > 0) void saveHistory(next, removed);
+          return next;
+        });
+        if (rows.some((row) => row.status === "running")) {
+          window.setTimeout(() => {
+            if (alive.current) resumeRunningRef.current();
+          }, 0);
+        }
+      }),
+    [],
+  );
 
   useEffect(() => {
     void hasPlatformCredentials().then((ready) => {
@@ -268,13 +320,19 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const resume = useCallback(
     async (requestId: string, draft: RunDraft, expected: number) => {
       try {
-        const status = await watchRequest(requestId, {
-          deadline: draft.createdAt + POLL_DEADLINE_MS,
-        });
+        /* The window runs from this watch, not from the submit: a reload long
+           after a run started still asks about it. */
+        const status = await watchRequest(requestId);
         if (!alive.current) return;
         const records = terminalRows(requestId, draft, status);
         setHistory((prev) => {
-          const next = replaceRequest(prev, requestId, records);
+          /* Generate prices a run after saving its rows, so a watch picked up
+             from the log in between carries no price; the rows have it. */
+          const cost =
+            draft.cost ??
+            prev.find((record) => record.status === "running" && requestIdOf(record) === requestId)?.cost;
+          const priced = cost === draft.cost ? records : terminalRows(requestId, { ...draft, cost }, status);
+          const next = replaceRequest(prev, requestId, priced);
           void saveHistory(next);
           return next;
         });
@@ -288,7 +346,30 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
         }
       } catch (caught) {
         if (!alive.current) return;
-        const message = describeError(caught);
+        /* This tab's build is gone from the server, so asking again only fails
+           again. The rows stay running and a reload picks them back up. */
+        if (caught instanceof StaleBuild) {
+          setError(`${caught.message}. Recarga la página para ver tus resultados; la generación sigue en Higgsfield.`);
+          return;
+        }
+        /* The watch broke, not the run: it may still finish and be billed, so
+           its rows stay running for the next check — once the key is saved, or
+           shortly — unless the platform has left it unfinished for hours. */
+        const abandoned = caught instanceof Overdue && Date.now() - draft.createdAt > MAX_RUN_AGE_MS;
+        if (caught instanceof WatchInterrupted && !abandoned) {
+          const key = caught instanceof KeyRefused;
+          if (key) setKeysOpen(true);
+          else freshTimers.current.push(window.setTimeout(() => resumeRunningRef.current(), RESUME_RETRY_MS));
+          const when = key ? "al guardar tu clave" : "en breve";
+          setError(
+            (prev) =>
+              prev ?? `${caught.message}. La generación sigue en Higgsfield; se volverá a comprobar ${when}.`,
+          );
+          return;
+        }
+        const message = abandoned
+          ? "No se pudo confirmar el resultado tras horas de espera; puede que aún termine en Higgsfield"
+          : describeError(caught);
         if (message.includes("clave API")) setKeysOpen(true);
         setHistory((prev) => {
           const next = replaceRequest(prev, requestId, failedRows(requestId, expected, draft, message));
@@ -303,12 +384,13 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
 
   /* After the log hydrates, pick up any request that was still on the platform
      when the last session died. Generate starts its own watch; this is the
-     refresh path. */
-  useEffect(() => {
-    if (!historyLoaded) return;
+     refresh path. Coming back online or to the tab, saving the key, or the
+     retry after an interruption does the same for a watch that broke, or a run
+     another tab started. */
+  const resumeRunning = useCallback(() => {
     const groups = new Map<string, RunRecord[]>();
     for (const record of historyRef.current) {
-      if (record.status !== "running" || !record.requestId) continue;
+      if (record.status !== "running" || !record.requestId || isWatching(record.requestId)) continue;
       const rows = groups.get(record.requestId) ?? [];
       rows.push(record);
       groups.set(record.requestId, rows);
@@ -316,7 +398,21 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     for (const [requestId, rows] of groups) {
       void resume(requestId, draftOf(rows[0]!), rows.length);
     }
-  }, [historyLoaded, resume]);
+  }, [resume]);
+  resumeRunningRef.current = resumeRunning;
+  useEffect(() => {
+    if (!historyLoaded) return;
+    resumeRunning();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") resumeRunning();
+    };
+    window.addEventListener("online", resumeRunning);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", resumeRunning);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [historyLoaded, resumeRunning]);
 
   const visible = useMemo(() => {
     if (view === "assets") return history;
@@ -375,7 +471,10 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     const slots = native
       ? [{ skeletons: pending.map((slot) => slot.id) }]
       : pending.map((slot) => ({ skeletons: [slot.id] }));
-    const draft: RunDraft = {
+    /* Pricing from the source can wait on the clip's metadata for seconds; the
+       skeletons and the submit do not wait on it, so a press shows at once. */
+    const cost = costOf(entry, plane).catch(() => undefined);
+    const base: Omit<RunDraft, "cost"> = {
       surface: entry.surface,
       modelId: entry.id,
       modelLabel: entry.label,
@@ -385,7 +484,6 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
       badge,
       settings: plane.settings,
       createdAt: startedAt,
-      cost: await costOf(entry, plane),
     };
 
     setError(null);
@@ -398,13 +496,24 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
         const submitted = await submitGeneration(plane);
         if (!submitted.ok) throw new Error(submitted.error);
         const queued = submitted.value;
+        /* Saved as soon as the platform holds the request — it is paid for from
+           here, and a reload has to find it. The price is filled in after. */
         setHistory((prev) => {
-          const next = [...runningRows(queued.requestId, slot.skeletons.length, draft), ...prev];
+          const next = [...runningRows(queued.requestId, slot.skeletons.length, base), ...prev];
           void saveHistory(next);
           return next;
         });
         setRuns((prev) => prev.filter((active) => !slot.skeletons.includes(active.id)));
-        await resume(queued.requestId, draft, slot.skeletons.length);
+        const price = await cost;
+        if (price !== undefined) {
+          const updatedAt = Date.now();
+          setHistory((prev) =>
+            prev.map((record) =>
+              record.requestId === queued.requestId ? { ...record, cost: price, updatedAt } : record,
+            ),
+          );
+        }
+        await resume(queued.requestId, { ...base, cost: price }, slot.skeletons.length);
       } catch (caught) {
         if (!alive.current) return;
         const message = describeError(caught);
@@ -437,18 +546,27 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     [setModel, setSettings],
   );
 
+  /* Stamped so the change outranks the other tabs' older copies of the row. */
   const toggleFavorite = useCallback((record: RunRecord) => {
+    const updatedAt = Date.now();
     setHistory((prev) =>
       prev.map((entry) =>
-        entry.id === record.id ? { ...entry, favorite: !entry.favorite } : entry,
+        entry.id === record.id ? { ...entry, favorite: !entry.favorite, updatedAt } : entry,
       ),
     );
   }, []);
 
+  /* A deletion is the one change that removes rows from the store and the
+     other tabs, so it is saved as one — a row merely aged out is not. */
   const deleteRuns = useCallback((records: RunRecord[]) => {
     if (records.length === 0) return;
     const ids = new Set(records.map((record) => record.id));
-    setHistory((prev) => prev.filter((entry) => !ids.has(entry.id)));
+    const at = Date.now();
+    setHistory((prev) => {
+      const next = prev.filter((entry) => !ids.has(entry.id));
+      void saveHistory(next, [...ids].map((id) => [id, at] as const));
+      return next;
+    });
     setDeleted(records);
   }, []);
 
@@ -467,7 +585,9 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     if (!deleted) return;
     setHistory((prev) => {
       const here = new Set(prev.map((entry) => entry.id));
-      const back = deleted.filter((entry) => !here.has(entry.id));
+      /* Stamped after the deletion, so this tab and the others take it back. */
+      const now = Math.max(Date.now(), ...deleted.map((entry) => entry.updatedAt ?? entry.createdAt)) + 1;
+      const back = deleted.filter((entry) => !here.has(entry.id)).map((entry) => ({ ...entry, updatedAt: now }));
       if (back.length === 0) return prev;
       return [...prev, ...back].sort((a, b) => b.createdAt - a.createdAt);
     });
@@ -562,8 +682,9 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const favoritePicked = useCallback(() => {
     const ids = new Set(selected);
     const keep = !pickedRecords.every((record) => record.favorite === true);
+    const updatedAt = Date.now();
     setHistory((prev) =>
-      prev.map((entry) => (ids.has(entry.id) ? { ...entry, favorite: keep } : entry)),
+      prev.map((entry) => (ids.has(entry.id) ? { ...entry, favorite: keep, updatedAt } : entry)),
     );
   }, [selected, pickedRecords]);
 
@@ -731,6 +852,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
               setKeyConfigured(true);
               setKeysOpen(false);
               setError(null);
+              resumeRunning();
             }}
             onCleared={() => {
               setKeyConfigured(false);

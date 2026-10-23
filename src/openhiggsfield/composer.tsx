@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { parseSettings } from "@/generation/catalog";
-import type { MediaItem, ModelEntry, Surface } from "@/generation/catalog";
+import type { MediaItem, MediaRole, ModelEntry, Surface } from "@/generation/catalog";
 import { videoSeconds } from "@/generation/cost";
-import { estimateCost, formatCost, pricedFromSource, scaleCost, type Cost } from "@/generation/pricing";
+import { costPerSourceSecond, estimateCost, formatCost, pricedFromSource, scaleCost, type Cost } from "@/generation/pricing";
 import { MAX_BATCH, useActive } from "@/generation/stores/active";
 import { useImagePrompt, useVideoPrompt } from "@/generation/stores/prompt";
 import { useSettings } from "@/generation/stores/settings";
@@ -287,7 +287,6 @@ export function Composer({
                     type="button"
                     className="ohf-attach ohf-tip ohf-tip--start"
                     data-tip={attachLabel}
-                    disabled={tray.allFull}
                     aria-label={tray.uploading ? "Subiendo" : attachLabel}
                     aria-expanded={overlay === ASSETS}
                     aria-haspopup="dialog"
@@ -500,7 +499,8 @@ const ESTIMATE_TIPS: Record<"price" | "per-second", string> = {
 };
 
 /* Cost of one result before the press is made. Models billed on their source
-   video are priced from the attached clip's metadata. */
+   video are priced from the attached clip's metadata; some others by which
+   endpoint the attachments send the run to. */
 function useEstimate(
   model: ModelEntry,
   values: Record<string, unknown>,
@@ -509,6 +509,8 @@ function useEstimate(
   const fromSource = pricedFromSource(model.id);
   const source = fromSource ? items.find((item) => item.role === "video")?.url : undefined;
   const [seconds, setSeconds] = useState<{ url: string; value: number | null } | null>(null);
+  const attached: Partial<Record<MediaRole, MediaItem[]>> = {};
+  for (const item of items) (attached[item.role] ??= []).push(item);
 
   useEffect(() => {
     if (!source) return;
@@ -522,9 +524,9 @@ function useEstimate(
   }, [source]);
 
   if (fromSource && (!source || seconds?.url !== source)) {
-    const rate = estimateCost(model.id, values, 1);
+    const rate = costPerSourceSecond(model.id, values, attached);
     return rate === null ? { kind: "unknown" } : { kind: "per-second", cost: rate };
   }
-  const cost = estimateCost(model.id, values, seconds?.value ?? null);
+  const cost = estimateCost(model.id, values, seconds?.value ?? null, attached);
   return cost === null ? { kind: "unknown" } : { kind: "price", cost };
 }

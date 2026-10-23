@@ -164,6 +164,7 @@ Open the studio, press **Add key**, and paste your platform key as `id:secret`.
 ```bash
 HF_API_BASE_URL=                      # generation API origin, server only
 OPEN_HIGGSFIELD_READ_WRITE_TOKEN=     # Vercel Blob read-write token
+CRON_SECRET=                          # Vercel Cron bearer secret; /api/cleanup refuses every call without it
 ```
 
 ### Commands
