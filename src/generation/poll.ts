@@ -1,3 +1,5 @@
+import { unstable_isUnrecognizedActionError } from "next/navigation";
+
 import { getGenerationStatuses, type StatusAnswer } from "./actions";
 import type { GenerationStatus } from "./platform";
 
@@ -11,19 +13,36 @@ export const POLL_DEADLINE_MS = 10 * 60_000;
 const MAX_MISSES = 3;
 /** Requests asked about in one round; the server action refuses more. */
 const MAX_PER_ROUND = 50;
+/** Asks in one window that show the tab was awake for most of it. A window
+    that ends on a passing error after this many is overdue all the same; one
+    that slept through its deadline has far fewer. */
+const AWAKE_ASKS = Math.floor(POLL_DEADLINE_MS / POLL_INTERVAL_MS / 2);
 
 /** The watch ended without the platform saying how the run went: the
-    connection kept failing, the run outlasted its window, or the key was turned
-    away. The run itself may still finish and be billed, so its rows are left
-    running to be asked about again — never written off as failed. */
+    connection kept failing, the run outlasted its window, the key was turned
+    away, or the app was redeployed. The run itself may still finish and be
+    billed, so its rows are left running to be asked about again. */
 export class WatchInterrupted extends Error {}
 
 /** The interruption is the key's: missing, or not accepted. Asking again only
     helps once the key is fixed. */
 export class KeyRefused extends WatchInterrupted {}
 
+/** The run outlasted its window: the platform kept answering, never with an
+    ending. */
+export class Overdue extends WatchInterrupted {}
+
+/** The app was redeployed under this tab: its server actions are gone, so
+    asking again fails the same way until the page is reloaded. */
+export class StaleBuild extends WatchInterrupted {}
+
 type Waiter = {
   deadline: number;
+  /** The platform said how the run stands the last time it was asked, rather
+      than failing in passing. Only then is a run past its window overdue. */
+  answered: boolean;
+  /** Times the platform was asked about this run in this window. */
+  asked: number;
   resolve: (status: GenerationStatus) => void;
   reject: (reason: Error) => void;
 };
@@ -48,6 +67,8 @@ export function watchRequest(
   const promise = new Promise<GenerationStatus>((resolve, reject) => {
     waiting.set(requestId, {
       deadline: opts?.deadline ?? Date.now() + POLL_DEADLINE_MS,
+      answered: false,
+      asked: 0,
       resolve: (status) => {
         inflight.delete(requestId);
         resolve(status);
@@ -99,7 +120,12 @@ async function round(): Promise<void> {
     misses = 0;
     for (const result of results) deliver(result);
     sweep();
-  } catch {
+  } catch (caught) {
+    /* No number of rounds brings a retired build's actions back. */
+    if (unstable_isUnrecognizedActionError(caught)) {
+      settleAll(new StaleBuild("Hay una versión nueva de la app"));
+      return;
+    }
     if (++misses < MAX_MISSES) return;
     settleAll(new WatchInterrupted("Se perdió la conexión con Higgsfield"));
   } finally {
@@ -111,27 +137,41 @@ async function round(): Promise<void> {
 function deliver(result: StatusAnswer): void {
   const waiter = waiting.get(result.requestId);
   if (!waiter) return;
+  waiter.asked++;
   if ("error" in result) {
     /* A 429, a 5xx or a dropped connection says nothing about the run; it is
        asked about again next round, up to its deadline. */
-    if (result.about === null) return;
+    if (result.about === null) {
+      waiter.answered = false;
+      return;
+    }
     waiting.delete(result.requestId);
     waiter.reject(result.about === "key" ? new KeyRefused(result.error) : new Error(result.error));
     return;
   }
-  if (!TERMINAL.has(result.status.status)) return;
+  if (!TERMINAL.has(result.status.status)) {
+    waiter.answered = true;
+    return;
+  }
   waiting.delete(result.requestId);
   waiter.resolve(result.status);
 }
 
 /* A run the platform never finishes would otherwise be asked about for the
-   rest of the session. Past its window the watch stops; the run is not over. */
+   rest of the session. Past its window the watch stops; the run is not over.
+   The window is wall-clock, so it can run out while the machine sleeps: a
+   deadline met by a passing error is an interruption, not an overdue run —
+   unless the run was asked about all window long and never got an answer. */
 function sweep(): void {
   const now = Date.now();
   for (const [requestId, waiter] of [...waiting]) {
     if (now <= waiter.deadline) continue;
     waiting.delete(requestId);
-    waiter.reject(new WatchInterrupted("Higgsfield tardó demasiado en responder"));
+    waiter.reject(
+      waiter.answered || waiter.asked >= AWAKE_ASKS
+        ? new Overdue("Higgsfield tardó demasiado en responder")
+        : new WatchInterrupted("Se perdió la conexión con Higgsfield"),
+    );
   }
 }
 

@@ -207,16 +207,19 @@ export async function cancelGeneration(requestId: string): Promise<ActionResult<
 
 /** One request's answer inside a batched status poll. An error says what it is
     about: "run" — the platform refuses the request itself, however often it is
-    asked; "key" — no key, or one it turns away, which holds every run until it
-    is fixed while the runs go on; null — a passing 429 or 5xx, asked again. */
+    asked; "key" — no key, or one it does not accept, which holds every run
+    until it is fixed while the runs go on; null — a passing 429 or 5xx, asked
+    again. */
 export type StatusAnswer =
   | { requestId: string; status: GenerationStatus }
   | { requestId: string; error: string; about: "run" | "key" | null };
 
-/* Refusals of the request itself: a bad request, a request it does not know. */
-const RUN_REFUSALS = new Set([400, 404]);
-/* Refusals of the key: one the platform does not accept, or not for this. */
-const KEY_REFUSALS = new Set([401, 403]);
+/* Refusals of the request itself: a bad request, a request it does not know,
+   one this key may not read (a run made under another key or account). */
+const RUN_REFUSALS = new Set([400, 403, 404]);
+/* Refusals of the key: one the platform does not accept. A 403 still shows
+   the platform knows the key, so saving it again would change nothing. */
+const KEY_REFUSALS = new Set([401]);
 
 /** Every request in flight, answered in one round trip. Next dispatches server
     actions one at a time per client, so a poll per run would queue ahead of the
