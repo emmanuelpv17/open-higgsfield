@@ -14,7 +14,7 @@ export async function serveMcp(request: Request, apiKey: string): Promise<Respon
   if (!baseUrl) return new Response("Missing HF_API_BASE_URL", { status: 500 });
   const client = createPlatformClient({ apiKey, baseUrl });
 
-  const server = createStudioMcpServer(client);
+  const server = createStudioMcpServer(client, apiKey);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

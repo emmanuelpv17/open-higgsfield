@@ -3,8 +3,10 @@ import { z } from "zod";
 
 import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole, type ModelEntry } from "./catalog";
 import { encodeTraits, selectionFor } from "./influencer";
+import { keyWorks } from "./key-check";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
-import { createPlatformClient, type GenerationStatus } from "./platform";
+import { MCP_UPLOAD_HOURS, createUploadTicket } from "./mcp-upload";
+import { PlatformError, createPlatformClient, type GenerationStatus } from "./platform";
 import { presetId } from "./presets";
 import { estimateCost, formatCost, pricedFromSource, scaleCost } from "./pricing";
 import { effectiveSettings, toPlatform } from "./to-platform";
@@ -25,7 +27,7 @@ const POLL_MS = 3000;
 const INLINE_IMAGE_BYTES = 900_000;
 const NOTHING_SPENT = "No se envió nada a Higgsfield (no se gastó saldo).";
 
-export function createStudioMcpServer(client: Client): McpServer {
+export function createStudioMcpServer(client: Client, apiKey: string): McpServer {
   const server = new McpServer({ name: "open-higgsfield", version: "1.0.0" });
 
   server.registerTool(
@@ -137,11 +139,47 @@ export function createStudioMcpServer(client: Client): McpServer {
   );
 
   server.registerTool(
+    "create_upload_url",
+    {
+      title: "Create upload URL",
+      description:
+        `Prepares a one-file upload into the connector owner's own storage, for a file the user attached in the chat (it lives in your sandbox, e.g. /mnt/user-data/uploads/...). Returns a curl command: run it once, replacing {FILE} with the file's local path; it PUTs the file and prints JSON with its url. Then pass the returned url in generate's media. The command is valid for 15 minutes and only for this file name, type and size; the file is deleted automatically after about ${MCP_UPLOAD_HOURS} hours (a daily cleanup, so up to a day more). Images up to 20 MB (jpg, png, webp, gif), video up to 100 MB (mp4, mov), audio up to 50 MB (wav, mp3). Nothing is spent on Higgsfield.`,
+      inputSchema: {
+        filename: z.string().min(1).max(200).describe("The file's name with its extension, e.g. photo.png"),
+        size_bytes: z.coerce.number().int().positive().describe("Exact size of the file in bytes (e.g. from `stat -c %s <path>`)"),
+        content_type: z.string().max(100).optional().describe("MIME type, e.g. image/png; inferred from the extension when omitted"),
+      },
+    },
+    async ({ filename, size_bytes, content_type }) => {
+      /* The public route takes any id:secret shape; the store is the owner's,
+         so only a key the platform accepts gets a ticket. */
+      let works: boolean;
+      try {
+        works = await keyWorks(apiKey);
+      } catch (error) {
+        throw new Error(error instanceof PlatformError ? error.message : "No se pudo verificar la clave API. Intenta de nuevo.");
+      }
+      if (!works) throw new Error("Clave API inválida o vencida.");
+      const ticket = await createUploadTicket(filename, size_bytes, content_type);
+      return text(
+        JSON.stringify({
+          url: ticket.url,
+          command: ticket.command,
+          content_type: ticket.contentType,
+          max_bytes: ticket.maxBytes,
+          expires_at: ticket.expiresAt,
+          next: "Run command with {FILE} replaced by the local path. On success it prints JSON whose url equals the url above; then call generate with that url in media.",
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
     "generate",
     {
       title: "Generate image or video",
       description:
-        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs must be public https URLs (for example results of earlier generations, or files the user attached uploaded to a temporary host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
+        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs must be public https URLs (for example results of earlier generations). For a file the user attached in the chat, call create_upload_url first and pass the url it returns; tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
       inputSchema: {
         model: z.string().describe("Model id from list_models"),
         prompt: z.string().max(10000).default("").describe("What to generate"),
