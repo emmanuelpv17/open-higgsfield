@@ -1,7 +1,7 @@
 import { del, list } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
-import { UPLOAD_RETENTION_MS } from "@/generation/retention";
+import { MCP_UPLOAD_PREFIX, MCP_UPLOAD_RETENTION_MS, UPLOAD_RETENTION_MS } from "@/generation/retention";
 
 /* Run daily by Vercel Cron (vercel.json). Vercel sends CRON_SECRET as a bearer
    token and nothing else gets in; without it set the route refuses everyone,
@@ -15,7 +15,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   const token = process.env.OPEN_HIGGSFIELD_READ_WRITE_TOKEN;
   if (!token) return NextResponse.json({ error: "Missing OPEN_HIGGSFIELD_READ_WRITE_TOKEN" }, { status: 500 });
 
-  const cutoff = Date.now() - UPLOAD_RETENTION_MS;
+  const now = Date.now();
+  const cutoffOf = (pathname: string) =>
+    now - (pathname.startsWith(MCP_UPLOAD_PREFIX) ? MCP_UPLOAD_RETENTION_MS : UPLOAD_RETENTION_MS);
   let cursor: string | undefined;
   let scanned = 0;
   let deleted = 0;
@@ -23,7 +25,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     const page = await list({ token, cursor, limit: 1000 });
     scanned += page.blobs.length;
     const expired = page.blobs
-      .filter((blob) => new Date(blob.uploadedAt).getTime() < cutoff)
+      .filter((blob) => new Date(blob.uploadedAt).getTime() < cutoffOf(blob.pathname))
       .map((blob) => blob.url);
     if (expired.length) {
       await del(expired, { token });
