@@ -13,7 +13,7 @@ import { UPLOAD_LIMITS, formatMegabytes, uploadKindOf, type UploadKind } from ".
 
 const MB = 1024 * 1024;
 /* Tighter than the studio's for video: a connector upload is one PUT. */
-const MCP_MAX_BYTES: Record<UploadKind, number> = { image: 20 * MB, video: 100 * MB, audio: 50 * MB };
+const MCP_MAX_BYTES: Record<UploadKind, number> = { image: 10 * MB, video: 100 * MB, audio: 50 * MB };
 const TICKET_MS = 15 * 60 * 1000;
 const API_URL = "https://vercel.com/api/blob";
 /* The Blob API version the installed SDK speaks. */
