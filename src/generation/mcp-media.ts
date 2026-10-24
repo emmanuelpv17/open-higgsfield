@@ -1,27 +1,14 @@
-import { del, list, put } from "@vercel/blob";
+import { put } from "@vercel/blob";
 
 import { blobPathname, mintDeviceId } from "./device";
-import { sha256 } from "./key-check";
 import { MCP_UPLOAD_PREFIX } from "./retention";
 import { UPLOAD_LIMITS, formatMegabytes, uploadKindOf, type UploadKind } from "./upload-limits";
 
-/* Files reach the connector as base64 inside tool calls — the one channel a
-   chat attachment can take without Claude uploading it anywhere itself. Each
-   call is capped by the function's request size, so a larger file comes in
-   parts: every part is parked in the owner's Blob store under the caller's
-   key hash and an upload id, and the last one joins them into the file. */
+/* A small file sent inline to generate as a data: URI is stored in the
+   owner's Blob store under mcp/ first, so the platform gets an https link. */
 
 const MB = 1024 * 1024;
 const MAX_BYTES: Record<UploadKind, number> = { image: 10 * MB, video: 100 * MB, audio: 50 * MB };
-/* Vercel refuses request bodies over 4.5 MB, base64 included. */
-export const MAX_PART_BASE64 = 3_000_000;
-const MAX_PARTS = 400;
-const PARTS_PREFIX = `${MCP_UPLOAD_PREFIX}parts/`;
-const UPLOAD_ID_RE = /^[a-f0-9]{32}$/;
-
-export type PartResult =
-  | { done: false; uploadId: string; received: number; totalParts: number }
-  | { done: true; uploadId: string; url: string; bytes: number; contentType: string };
 
 function blobToken(): string {
   const token = process.env.OPEN_HIGGSFIELD_READ_WRITE_TOKEN;
@@ -68,83 +55,6 @@ function cleanBase64(data: string): string {
 
 export function decodeBase64(data: string): Uint8Array {
   return new Uint8Array(Buffer.from(cleanBase64(data), "base64"));
-}
-
-/** One part of a file; the last part (part === totalParts) joins and stores it. */
-export async function receivePart(input: {
-  apiKey: string;
-  uploadId?: string;
-  part: number;
-  totalParts: number;
-  filename: string;
-  contentType?: string;
-  data: string;
-}): Promise<PartResult> {
-  const { part, totalParts, filename, contentType } = input;
-  if (totalParts < 1 || totalParts > MAX_PARTS) throw new Error(`total_parts debe estar entre 1 y ${MAX_PARTS}.`);
-  if (part < 1 || part > totalParts) throw new Error(`part debe estar entre 1 y ${totalParts}.`);
-  if (input.data.length > MAX_PART_BASE64) {
-    throw new Error(`Cada parte admite hasta ${MAX_PART_BASE64} caracteres de base64; divide el archivo en más partes.`);
-  }
-  /* Refused before anything is stored: a wrong name or type fails on part 1. */
-  checkFile(filename, contentType, 0);
-  const piece = cleanBase64(input.data);
-  if (!piece) throw new Error("La parte está vacía.");
-
-  if (totalParts === 1) {
-    const bytes = decodeBase64(piece);
-    if (input.uploadId) throw new Error("upload_id solo se usa con archivos en varias partes.");
-    const { type } = checkFile(filename, contentType, bytes.byteLength);
-    const url = await storeFile(bytes, filename, type);
-    return { done: true, uploadId: "", url, bytes: bytes.byteLength, contentType: type };
-  }
-
-  if (part === 1 && input.uploadId) throw new Error("La parte 1 no lleva upload_id; se devuelve uno nuevo.");
-  if (part > 1 && !input.uploadId) throw new Error("Falta upload_id (lo devolvió la parte 1).");
-  const uploadId = input.uploadId ?? mintDeviceId();
-  if (!UPLOAD_ID_RE.test(uploadId)) throw new Error("upload_id no es válido.");
-  /* Parts are kept as base64 text and decoded only once joined: a split that
-     falls mid-quartet would corrupt a part decoded on its own. Parts sit under
-     the key's hash, so one caller cannot add to another's file. */
-  const folder = `${PARTS_PREFIX}${(await sha256(input.apiKey)).slice(0, 32)}/${uploadId}/`;
-  const token = blobToken();
-  await put(`${folder}${String(part).padStart(4, "0")}`, piece, {
-    access: "public",
-    token,
-    contentType: "text/plain",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  });
-  if (part < totalParts) return { done: false, uploadId, received: part, totalParts };
-
-  const stored = await listAll(folder, token);
-  const byPart = new Map(stored.map((blob) => [Number(blob.pathname.slice(folder.length)), blob]));
-  const missing = Array.from({ length: totalParts }, (_, i) => i + 1).filter((n) => !byPart.has(n));
-  if (missing.length) throw new Error(`Faltan las partes ${missing.join(", ")} de upload_id ${uploadId}; envíalas y vuelve a enviar la última.`);
-  const base64Length = Array.from({ length: totalParts }, (_, i) => byPart.get(i + 1)!.size).reduce((a, b) => a + b, 0);
-  const { type } = checkFile(filename, contentType, Math.floor((base64Length * 3) / 4));
-  const pieces = await Promise.all(
-    Array.from({ length: totalParts }, async (_, i) => {
-      const response = await fetch(byPart.get(i + 1)!.url, { cache: "no-store" });
-      if (!response.ok) throw new Error(`No se pudo leer la parte ${i + 1} (${response.status}).`);
-      return response.text();
-    }),
-  );
-  const joined = decodeBase64(pieces.join(""));
-  const url = await storeFile(joined, filename, type);
-  await del(stored.map((blob) => blob.url), { token }).catch(() => {});
-  return { done: true, uploadId, url, bytes: joined.byteLength, contentType: type };
-}
-
-async function listAll(prefix: string, token: string) {
-  const blobs: Awaited<ReturnType<typeof list>>["blobs"] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await list({ prefix, token, cursor, limit: 1000 });
-    blobs.push(...page.blobs);
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor);
-  return blobs;
 }
 
 /** A `data:<type>;base64,<data>` URI stored as a file, for generate's media. */
