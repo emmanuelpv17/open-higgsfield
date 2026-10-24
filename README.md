@@ -131,6 +131,17 @@ Connector URL: `https://<your-deployment>/api/mcp/<OPEN_HIGGSFIELD_MCP_SECRET>`.
 Anyone with that URL spends from the owner's key, so keep it private and
 rotate the secret if it leaks.
 
+### Results inline
+
+`generate` and `check_generation` declare an MCP Apps viewer
+(`ui://open-higgsfield/result.html`). In Claude, the result shows up in a tile
+inside the chat — images, or the video player, each with a download button —
+instead of as links. While a run is still rendering, the tile asks
+`check_generation` again every 8 seconds and fills in when the result lands.
+The viewer loads media only from `*.cloudfront.net`, `*.higgsfield.ai` and the
+deployment's own Blob store. Clients without MCP Apps still get the links as
+text.
+
 ### Files attached in the chat
 
 `generate` takes media as public https URLs, and a file attached in Claude's
