@@ -7,6 +7,7 @@ import { keyWorks } from "./key-check";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { storeDataUri } from "./mcp-media";
 import { MCP_UPLOAD_HOURS, createUploadTicket } from "./mcp-upload";
+import { VIEWER_HTML, VIEWER_MIME, VIEWER_URI, viewerResourceDomains, type ViewerPayload } from "./mcp-viewer";
 import { PlatformError, createPlatformClient, type GenerationStatus } from "./platform";
 import { presetId } from "./presets";
 import { estimateCost, formatCost, pricedFromSource, scaleCost } from "./pricing";
@@ -30,10 +31,29 @@ const INLINE_IMAGE_BYTES = 900_000;
 const mediaRef = z
   .string()
   .refine((value) => /^https?:\/\//i.test(value) || /^data:[^,]+;base64,/i.test(value), "An https URL or a data:<type>;base64,... URI");
+const VIEWER_META = { ui: { resourceUri: VIEWER_URI }, "ui/resourceUri": VIEWER_URI };
 const NOTHING_SPENT = "No se envió nada a Higgsfield (no se gastó saldo).";
 
 export function createStudioMcpServer(client: Client, apiKey: string): McpServer {
   const server = new McpServer({ name: "open-higgsfield", version: "1.0.0" });
+
+  /* generate and check_generation show their result in this viewer, inline
+     in the chat, instead of handing the user links. */
+  server.registerResource(
+    "Result viewer",
+    VIEWER_URI,
+    { mimeType: VIEWER_MIME, description: "Shows generated images and videos inline" },
+    async () => ({
+      contents: [
+        {
+          uri: VIEWER_URI,
+          mimeType: VIEWER_MIME,
+          text: VIEWER_HTML,
+          _meta: { ui: { csp: { resourceDomains: viewerResourceDomains() }, prefersBorder: false } },
+        },
+      ],
+    }),
+  );
 
   server.registerTool(
     "list_models",
@@ -175,6 +195,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     "generate",
     {
       title: "Generate image or video",
+      _meta: VIEWER_META,
       description:
         "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs are public https URLs (for example results of earlier generations). For a file the user attached in the chat, call create_upload_url first, run its curl command, and pass the url it returns (do not upload attachments to any other host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
       inputSchema: {
@@ -259,7 +280,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
         }
         if (!["queued", "in_progress", "unknown"].includes(status.status)) break;
       }
-      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`);
+      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, model.label);
     },
   );
 
@@ -267,7 +288,8 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     "check_generation",
     {
       title: "Check generation",
-      description: "Checks a generation started with generate and returns the result when it is ready.",
+      _meta: VIEWER_META,
+      description: "Checks a generation started with generate and returns the result when it is ready. The result is shown to the user inline in the connector's viewer.",
       inputSchema: { request_id: z.string().min(1) },
       annotations: { readOnlyHint: true },
     },
@@ -349,24 +371,33 @@ function checkSettings(model: ModelEntry, settings: Record<string, unknown>): Re
   return out;
 }
 
-async function report(requestId: string, status: GenerationStatus | null, heading: string) {
+async function report(requestId: string, status: GenerationStatus | null, heading: string, title = "") {
   const state = status?.status ?? "queued";
   const lines = [heading, `request_id: ${requestId}`, `status: ${state}`].filter(Boolean);
   const content: Content[] = [];
+  const images = state === "completed" ? (status?.images ?? []).map((image) => image.url) : [];
+  const video = state === "completed" ? (status?.video?.url ?? null) : null;
+  let error: string | null = null;
   if (state === "completed") {
-    const urls = [...(status?.images ?? []).map((image) => image.url), ...(status?.video ? [status.video.url] : [])];
-    lines.push(...urls.map((url) => `result: ${url}`));
+    lines.push(...[...images, ...(video ? [video] : [])].map((url) => `result: ${url}`));
     const inline = await Promise.all((status?.images ?? []).slice(0, 4).map((image) => inlineImage(image.url)));
     content.push(...inline.filter((item): item is Content => item !== null));
-    lines.push("Share the result links with the user; links from the platform expire after a while, so suggest downloading.");
+    lines.push(
+      "The result is already shown to the user inline in the connector's viewer (with a download button), so do not paste these links unless the user asks for them.",
+    );
   } else if (state === "queued" || state === "in_progress") {
-    lines.push("Still rendering. Call check_generation with this request_id in a little while.");
+    lines.push(
+      "Still rendering. The connector's viewer shows the user a progress tile that fills in by itself when the result is ready; call check_generation with this request_id only if the user asks or the viewer is not available.",
+    );
   } else if (state === "nsfw") {
+    error = "Higgsfield bloqueó el resultado por su filtro de contenido.";
     lines.push("The platform blocked the result with its NSFW filter (not billed as a delivered result). Suggest adjusting the prompt or inputs.");
   } else {
-    lines.push(`Not delivered: ${typeof status?.error === "string" ? status.error : JSON.stringify(status?.error ?? state)}`);
+    error = typeof status?.error === "string" ? status.error : JSON.stringify(status?.error ?? state);
+    lines.push(`Not delivered: ${error}`);
   }
-  return { content: [{ type: "text" as const, text: lines.join("\n") }, ...content] };
+  const structuredContent: ViewerPayload = { requestId, status: state, heading: title, images, video, error };
+  return { content: [{ type: "text" as const, text: lines.join("\n") }, ...content], structuredContent };
 }
 
 /* Inlining is a nicety; it gets a few seconds so the reply with the request id
