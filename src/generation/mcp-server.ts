@@ -5,7 +5,7 @@ import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole, 
 import { encodeTraits, selectionFor } from "./influencer";
 import { keyWorks } from "./key-check";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
-import { MAX_PART_BASE64, receivePart, storeDataUri } from "./mcp-media";
+import { storeDataUri } from "./mcp-media";
 import { MCP_UPLOAD_HOURS, createUploadTicket } from "./mcp-upload";
 import { PlatformError, createPlatformClient, type GenerationStatus } from "./platform";
 import { presetId } from "./presets";
@@ -144,47 +144,11 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
   );
 
   server.registerTool(
-    "upload_media",
-    {
-      title: "Upload media",
-      description:
-        `Stores a file the user attached in the chat (it lives in your sandbox, e.g. /mnt/user-data/uploads/...) in the connector owner's own storage and returns a public https url to pass in generate's media. Send the file's bytes as base64 in data_base64 — no terminal upload needed. To keep calls small, first shrink big images (e.g. longest side 1536–2048 px, JPEG quality ~85: usually 150–600 KB) — models do not need more for a start frame or reference. A file whose base64 is longer than ~200,000 characters should go in parts: split the base64 string into consecutive pieces, send part 1 without upload_id, then parts 2..N with the upload_id that part 1 returned and the same filename, content_type and total_parts; the last part returns the url. Max ${MAX_PART_BASE64.toLocaleString("en-US")} base64 characters per call. Limits: images up to 10 MB (jpg, png, webp, gif), video up to 100 MB (mp4, mov), audio up to 50 MB (wav, mp3). Files are deleted automatically after about ${MCP_UPLOAD_HOURS} hours. Nothing is spent on Higgsfield.`,
-      inputSchema: {
-        filename: z.string().min(1).max(200).describe("The file's name with its extension, e.g. photo.jpg"),
-        content_type: z.string().max(100).optional().describe("MIME type, e.g. image/jpeg; inferred from the extension when omitted"),
-        data_base64: z.string().min(1).describe("This part's bytes as base64 (a data: prefix is allowed)"),
-        part: z.coerce.number().int().min(1).default(1).describe("1-based part number"),
-        total_parts: z.coerce.number().int().min(1).default(1).describe("How many parts the file is split into"),
-        upload_id: z.string().optional().describe("From part 1's reply; required on parts 2..N"),
-      },
-    },
-    async ({ filename, content_type, data_base64, part, total_parts, upload_id }) => {
-      await requireWorkingKey(apiKey);
-      const result = await receivePart({
-        apiKey,
-        uploadId: upload_id,
-        part,
-        totalParts: total_parts,
-        filename,
-        contentType: content_type,
-        data: data_base64,
-      });
-      return text(
-        JSON.stringify(
-          result.done
-            ? { url: result.url, bytes: result.bytes, content_type: result.contentType, next: "Pass url in generate's media." }
-            : { upload_id: result.uploadId, received: `${result.received}/${result.totalParts}`, next: `Send part ${result.received + 1} with this upload_id.` },
-        ),
-      );
-    },
-  );
-
-  server.registerTool(
     "create_upload_url",
     {
       title: "Create upload URL",
       description:
-        `Alternative to upload_media for large files (mainly video), when running a terminal command is possible. Prepares a one-file upload into the connector owner's own storage, for a file the user attached in the chat (it lives in your sandbox, e.g. /mnt/user-data/uploads/...). Returns a curl command: run it once, replacing {FILE} with the file's local path; it PUTs the file and prints JSON with its url. Then pass the returned url in generate's media. The command is valid for 15 minutes and only for this file name, type and size; the file is deleted automatically after about ${MCP_UPLOAD_HOURS} hours (a daily cleanup, so up to a day more). Images up to 10 MB (jpg, png, webp, gif), video up to 100 MB (mp4, mov), audio up to 50 MB (wav, mp3). Nothing is spent on Higgsfield.`,
+        `Use this for every file the user attached in the chat (images, video, audio) before generate. Prepares a one-file upload into the connector owner's own storage, for a file the user attached in the chat (it lives in your sandbox, e.g. /mnt/user-data/uploads/...). Returns a curl command: run it once, replacing {FILE} with the file's local path; it PUTs the file and prints JSON with its url. Then pass the returned url in generate's media. The command is valid for 15 minutes and only for this file name, type and size; the file is deleted automatically after about ${MCP_UPLOAD_HOURS} hours (a daily cleanup, so up to a day more). Images up to 10 MB (jpg, png, webp, gif), video up to 100 MB (mp4, mov), audio up to 50 MB (wav, mp3). Nothing is spent on Higgsfield.`,
       inputSchema: {
         filename: z.string().min(1).max(200).describe("The file's name with its extension, e.g. photo.png"),
         size_bytes: z.coerce.number().int().positive().describe("Exact size of the file in bytes (e.g. from `stat -c %s <path>`)"),
@@ -212,7 +176,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     {
       title: "Generate image or video",
       description:
-        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs are public https URLs (for example results of earlier generations). For a file the user attached in the chat, call upload_media first and pass the url it returns (a small image may also go inline as a data:<type>;base64,... URI, stored the same way); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
+        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs are public https URLs (for example results of earlier generations). For a file the user attached in the chat, call create_upload_url first, run its curl command, and pass the url it returns (do not upload attachments to any other host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
       inputSchema: {
         model: z.string().describe("Model id from list_models"),
         prompt: z.string().max(10000).default("").describe("What to generate"),
