@@ -85,7 +85,8 @@ Next.js 16 App Router on Vercel · React 19 · plain CSS · Zustand · pnpm
 
 The deployment is also a remote MCP server, so Claude can list models,
 generate and check results from a chat. Tools: `list_models`, `list_options`,
-`create_upload_url`, `generate`, `check_generation`, `cancel_generation`.
+`upload_media`, `create_upload_url`, `generate`, `check_generation`,
+`cancel_generation`.
 There are two endpoints:
 
 ### `/api/mcp` — each person brings their own key
@@ -134,21 +135,28 @@ rotate the secret if it leaks.
 ### Files attached in the chat
 
 `generate` takes media as public https URLs, and a file attached in Claude's
-chat only exists inside Claude's sandbox. `create_upload_url` bridges the two
-without a third-party host: given the file's name and size, it returns a curl
-command that PUTs that one file into the deployment's own Blob store (the same
-`OPEN_HIGGSFIELD_READ_WRITE_TOKEN` store the studio uploads to), plus the URL
-the file will have. Claude runs the command, then passes the URL to
-`generate`.
+chat only exists inside Claude's sandbox. Two tools bridge the gap, both
+storing into the deployment's own Blob store (`OPEN_HIGGSFIELD_READ_WRITE_TOKEN`)
+under `mcp/`, where the daily cleanup deletes files after 24 h (so they live
+24–48 h, since the cron runs once a day):
 
-- The command carries a Blob client token scoped to one pathname, one content
-  type and a size cap, valid for 15 minutes. The store's read-write token and
-  the Higgsfield key never leave the server, and only a key the platform
-  accepts gets a token.
-- Limits: images up to 20 MB (jpg, png, webp, gif), video up to 100 MB (mp4,
-  mov), audio up to 50 MB (wav, mp3).
-- Files land under `mcp/` and the daily cleanup cron deletes them after 24 h
-  (so they live 24–48 h, since the cron runs once a day).
+- **`upload_media`** — Claude sends the file as base64 inside the tool call,
+  so nothing is uploaded from its terminal. Files over ~200,000 base64
+  characters go in parts (`part`, `total_parts`, and the `upload_id` part 1
+  returns); the last part returns the URL. Up to 3,000,000 base64 characters
+  per call (Vercel's 4.5 MB request cap). Base64 is model output, so the tool
+  tells Claude to shrink big images first (longest side ~1536–2048 px, JPEG
+  ~85) — plenty for a start frame or reference.
+- **`create_upload_url`** — for big files (mainly video) when running a
+  terminal command is allowed: returns a curl PUT carrying a Blob client token
+  scoped to one pathname, type and size for 15 minutes.
+
+`generate` also accepts a small file inline as a `data:<type>;base64,...` URI
+in `media`; it is stored the same way before the link check.
+
+Both tools store only for a key the platform accepts; the Higgsfield key and
+the store's read-write token never leave the server. Limits: images 10 MB
+(jpg, png, webp, gif), video 100 MB (mp4, mov), audio 50 MB (wav, mp3).
 
 ## Architecture
 
