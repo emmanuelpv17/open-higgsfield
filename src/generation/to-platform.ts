@@ -60,6 +60,7 @@ const MAP: Record<string, Mapper> = {
   "qwen-image-3": mapQwenImage,
   "ideogram-4": mapIdeogram,
   "z-image-turbo": mapZImage,
+  "ads-studio": mapAdsStudio,
   "ai-influencer": mapAiInfluencer,
 };
 
@@ -605,6 +606,21 @@ function mapZImage(plane: GenerationPlane): Mapped {
       aspect_ratio: plane.settings.aspectRatio,
       resolution: plane.settings.resolution,
       prompt_extend: plane.settings.enhancePrompt === true,
+    },
+  };
+}
+
+function mapAdsStudio(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference");
+  const language = String(plane.settings.language);
+  return {
+    path: "higgsfield/ads-studio/v1.0",
+    body: {
+      prompt: plane.prompt.text,
+      aspect_ratio: plane.settings.aspectRatio,
+      batch_size: Number(plane.settings.batchSize),
+      ...(language && language !== "auto" ? { language } : {}),
+      ...(refs.length ? { image_urls: refs } : {}),
     },
   };
 }

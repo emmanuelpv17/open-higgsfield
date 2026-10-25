@@ -1,3 +1,4 @@
+import { adsStudio } from "./ads-studio";
 import { aiInfluencer } from "./ai-influencer";
 import { cinemaStudio4 } from "./cinema-studio";
 import { dop } from "./dop";
@@ -48,6 +49,7 @@ export const MODELS: readonly ModelEntry[] = [
   marketingStudioImage,
   marketingStudioFlare,
   marketingStudioSunburst,
+  adsStudio,
   cinemaStudio4,
   genjutsuMotion,
   genjutsuSwap,

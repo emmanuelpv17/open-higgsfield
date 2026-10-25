@@ -110,6 +110,7 @@ const SETTING_LABELS: Record<string, string> = {
   likeness: "Parecido",
   traits: "Apariencia",
   seed: "Semilla",
+  language: "Idioma",
 };
 
 /* AI Influencer's character types, named the way its playground names them. */
@@ -138,6 +139,7 @@ const VALUE_LABELS: Record<string, string> = {
   default: "Normal",
   quality: "Calidad",
   adaptive: "Adaptativo",
+  auto: "Auto",
   jpg: "JPG",
   png: "PNG",
   webp: "WEBP",
