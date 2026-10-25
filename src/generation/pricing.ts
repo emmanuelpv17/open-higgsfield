@@ -279,6 +279,8 @@ const PRICING: Record<string, Pricer> = {
   "recraft-4.1-utility": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
   "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf),
   "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf),
+  /* Token-billed; the docs' illustrative figure per rendered image. */
+  "ads-studio": { price: () => flat(0.084) },
 };
 
 /** Whether this model is priced from the length of its source video. */
