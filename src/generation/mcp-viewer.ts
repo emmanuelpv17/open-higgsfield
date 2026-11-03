@@ -199,11 +199,26 @@ export const VIEWER_HTML = `<!doctype html>
         throw error;
       };
     }
+    var fetched = null;
+    /* Last resort, an ordinary download of the fetched file: where the
+       host's frame allows downloads, the app shows its own "Save as". A
+       blocked one fails without a word, hence the conditional note. */
+    function plainSave() {
+      if (!fetched) return false;
+      var link = document.createElement("a");
+      link.href = URL.createObjectURL(fetched);
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(function () { URL.revokeObjectURL(link.href); link.remove(); }, 60000);
+      return true;
+    }
     function hostSave() {
       fetch(url)
         .catch(reason("archivo"))
         .then(function (response) { if (!response.ok) throw new Error("archivo: HTTP " + response.status); return response.blob(); })
         .then(function (blob) {
+          fetched = blob;
           return new Promise(function (resolve, reject) {
             var reader = new FileReader();
             reader.onload = function () { resolve(String(reader.result).split(",")[1] || ""); };
@@ -222,7 +237,9 @@ export const VIEWER_HTML = `<!doctype html>
             .catch(reason("Claude (enlace)"))
             .then(function (r) { if (r && r.isError) { why.push("Claude (enlace): rechazado"); throw new Error("denied"); } })
             .catch(function () {
-              said = "No se pudo descargar desde aquí (" + why.join(" · ") + "). Haz clic derecho sobre el video o la imagen y elige guardar.";
+              said = plainSave()
+                ? "Si no se abrió la ventana para guardar, este chat no deja descargar desde el recuadro (" + why.join(" · ") + ")."
+                : "No se pudo descargar desde aquí (" + why.join(" · ") + ").";
               if (payload) render(payload);
             });
         });
