@@ -47,7 +47,8 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
         uri,
         mimeType: VIEWER_MIME,
         text: VIEWER_HTML,
-        _meta: { ui: { csp: { resourceDomains: viewerResourceDomains() }, prefersBorder: false } },
+        /* connectDomains lets "Descargar" fetch the file it saves. */
+        _meta: { ui: { csp: { resourceDomains: viewerResourceDomains(), connectDomains: viewerResourceDomains() }, prefersBorder: false } },
       },
     ],
   });
@@ -283,6 +284,19 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
         prompt: prompt.trim(),
         chips: chipsFor(model.label, sent),
         aspect: typeof sent.aspectRatio === "string" ? sent.aspectRatio : undefined,
+        /* The links as stored and checked, so a rerun neither repeats an
+           inline upload nor carries its bytes in this reply. */
+        rerun: {
+          model: model.id,
+          prompt,
+          settings: settings ?? {},
+          media: Object.fromEntries(
+            Object.entries(items).map(([role, list]) => {
+              const urls = (list ?? []).map((item) => item.url);
+              return [role, role === "start" || role === "end" ? urls[0]! : urls];
+            }),
+          ),
+        },
       });
     },
   );
@@ -425,7 +439,7 @@ function chipsFor(label: string, settings: Record<string, unknown>): string[] {
   return chips;
 }
 
-type ViewerExtras = Pick<ViewerPayload, "prompt" | "chips" | "aspect">;
+type ViewerExtras = Pick<ViewerPayload, "prompt" | "chips" | "aspect" | "rerun">;
 
 async function report(
   requestId: string,

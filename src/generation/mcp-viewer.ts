@@ -31,6 +31,9 @@ export type ViewerPayload = {
   chips?: string[];
   /** "9:16" and the like, to size the waiting placeholder. */
   aspect?: string;
+  /** generate's arguments for the run, with stored links instead of inline
+      files, so the viewer's "Recrear" can run it again. */
+  rerun?: { model: string; prompt: string; settings: Record<string, unknown>; media: Record<string, string | string[]> };
 };
 
 export const VIEWER_HTML = `<!doctype html>
@@ -53,7 +56,12 @@ export const VIEWER_HTML = `<!doctype html>
   .chip { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; color: var(--muted); white-space: nowrap; }
   .state { margin-left: auto; font-size: 11px; color: var(--muted); }
   .grid { display: flex; flex-wrap: wrap; gap: 6px; }
-  .media { max-width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+  .media { position: relative; max-width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+  /* An image carries its own actions on it, bottom left, as on Higgsfield. */
+  .over { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; }
+  .ico { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 30px; height: 30px; padding: 0 9px; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(0, 0, 0, 0.55); color: #fff; backdrop-filter: blur(6px); }
+  .ico.primary { background: #d2f34c; color: #111; }
+  .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
   /* A fixed cap, not vh: inline, vh is the frame's own height, which starts
      small and would keep a vertical video a sliver. Fullscreen fills the view. */
   .media img, .media video { display: block; width: auto; max-width: 100%; height: auto; max-height: 400px; }
@@ -100,7 +108,8 @@ export const VIEWER_HTML = `<!doctype html>
   function setFull(on) {
     full = on;
     document.documentElement.classList.toggle("full", on);
-    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = fsLabel() + " " + fsTitle(); });
+    Array.prototype.forEach.call(document.querySelectorAll(".btn.fs"), function (b) { b.textContent = fsLabel() + " " + fsTitle(); });
+    Array.prototype.forEach.call(document.querySelectorAll(".ico.fs"), function (b) { b.textContent = fsLabel(); b.title = fsTitle(); });
     resize();
   }
   /* The host's frame does not allow the video's own fullscreen button, so
@@ -120,10 +129,33 @@ export const VIEWER_HTML = `<!doctype html>
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
   function safe(url) { return typeof url === "string" && /^https:\\/\\//.test(url) ? url : null; }
 
+  /* First the system's "Save as" dialog, so the user picks the folder and
+     name; hosts that keep it from a sandboxed frame get their own download,
+     and failing that the link opens. */
   function download(url) {
-    request("ui/download-file", { contents: [{ type: "resource_link", uri: url, name: url.split("/").pop().split("?")[0] || "resultado" }] })
-      .then(function (r) { if (r && r.isError) throw new Error("denied"); })
-      .catch(function () { request("ui/open-link", { url: url }).catch(function () {}); });
+    var name = url.split("/").pop().split("?")[0] || "resultado";
+    var hostDownload = function () {
+      request("ui/download-file", { contents: [{ type: "resource_link", uri: url, name: name }] })
+        .then(function (r) { if (r && r.isError) throw new Error("denied"); })
+        .catch(function () { request("ui/open-link", { url: url }).catch(function () {}); });
+    };
+    if (!window.showSaveFilePicker) return hostDownload();
+    var ext = (name.split(".").pop() || "").toLowerCase();
+    var type = ext === "mp4" ? "video/mp4" : ext === "webm" ? "video/webm" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+    var types = [{ description: type.indexOf("video") === 0 ? "Video" : "Imagen", accept: {} }];
+    types[0].accept[type] = ["." + (ext || "png")];
+    window.showSaveFilePicker({ suggestedName: name, types: types })
+      .then(function (handle) {
+        return fetch(url).then(function (response) {
+          if (!response.ok) throw new Error("fetch");
+          return Promise.all([response.blob(), handle.createWritable()]);
+        }).then(function (both) { return both[1].write(both[0]).then(function () { return both[1].close(); }); });
+      })
+      .catch(function (error) {
+        /* The user closing the dialog is an answer, not a failure. */
+        if (error && error.name === "AbortError") return;
+        hostDownload();
+      });
   }
   function mediaTile(node) {
     var wrap = el("div", "media");
@@ -135,6 +167,33 @@ export const VIEWER_HTML = `<!doctype html>
     if (title) { b.title = title; b.setAttribute("aria-label", title); }
     b.onclick = onclick;
     return b;
+  }
+  function icon(cls, text, title, onclick) {
+    var b = el("button", "ico " + cls, text);
+    b.title = title; b.setAttribute("aria-label", title);
+    b.onclick = onclick;
+    return b;
+  }
+  /* Animar and Editar hand the next step to Claude, as a message in the
+     chat, so it can ask for the model or the change before anything is
+     spent. A host without ui/message gets the text to send instead. */
+  var said = "";
+  function ask(text) {
+    request("ui/message", { role: "user", content: [{ type: "text", text: text }] }, 5000)
+      .then(function (r) { if (r && r.isError) throw new Error("denied"); said = ""; })
+      .catch(function () { said = "Escríbele a Claude: «" + text + "»"; if (payload) render(payload); });
+  }
+  function imageActions(img, url) {
+    var over = el("div", "over");
+    over.appendChild(icon("primary", "\u25B6 Animar", "Convertir esta imagen en video", function () {
+      ask("Anima esta imagen en un video con el conector API Higgsfield MCP. Pregúntame el modelo y el movimiento antes de generar: " + url);
+    }));
+    over.appendChild(icon("", "\u270E", "Editar esta imagen", function () {
+      ask("Quiero editar esta imagen con el conector API Higgsfield MCP. Pregúntame qué cambiar antes de generar: " + url);
+    }));
+    over.appendChild(icon("", "\u2913", "Descargar", function () { download(url); }));
+    over.appendChild(icon("fs", fsLabel(), fsTitle(), function () { toggleFull(img); }));
+    return over;
   }
   var promptOpen = false;
   /* The prompt, clamped to two lines with "Ver más", then the chips and the
@@ -178,16 +237,18 @@ export const VIEWER_HTML = `<!doctype html>
       }
       images.slice(0, 4).forEach(function (src) {
         var img = el("img"); img.src = src; img.alt = "Resultado"; img.onload = resize;
-        grid.appendChild(mediaTile(img));
+        var tile = mediaTile(img);
+        tile.appendChild(imageActions(img, src));
+        grid.appendChild(tile);
         if (!first) first = img;
       });
       app.appendChild(grid);
       var acts = el("div", "acts");
-      (video ? [video] : images.slice(0, 4)).forEach(function (url, i, all) {
-        acts.appendChild(button("primary", "\u2913 Descargar" + (all.length > 1 ? " " + (i + 1) : ""), "", function () { download(url); }));
-      });
-      acts.appendChild(button("fs", fsLabel() + " " + fsTitle(), "", function () { toggleFull(first); }));
-      app.appendChild(acts);
+      if (video) acts.appendChild(button("primary", "\u2913 Descargar", "", function () { download(video); }));
+      if (p.rerun) acts.appendChild(button("re", "\u21BB Recrear", "Generar otra vez con lo mismo (gasta saldo)", function () { recreate(this); }));
+      if (video) acts.appendChild(button("fs", fsLabel() + " " + fsTitle(), "", function () { toggleFull(first); }));
+      if (acts.childNodes.length) app.appendChild(acts);
+      if (said) app.appendChild(el("div", "said", said));
     } else if (p.status === "queued" || p.status === "in_progress" || p.status === "unknown") {
       if (!started) started = Date.now();
       var minutes = Math.floor((Date.now() - started) / 60000);
@@ -229,6 +290,21 @@ export const VIEWER_HTML = `<!doctype html>
         });
     }, delay);
   }
+  /* Runs generate again with the same arguments, through the host, which
+     asks the user to approve it like any spend. The new run takes over this
+     tile: its own result, or its progress and polling. */
+  function recreate(btn) {
+    if (!payload || !payload.rerun) return;
+    btn.disabled = true; btn.textContent = "Recreando…";
+    request("tools/call", { name: "generate", arguments: payload.rerun }, 70000)
+      .then(function (result) {
+        if (!result || result.isError) throw new Error("refused");
+        if (timer) { clearTimeout(timer); timer = null; }
+        started = 0; misses = 0; stopped = "";
+        take(result);
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = "\u21BB Recrear"; });
+  }
   function stop(why) {
     stopped = why;
     if (payload) render(payload);
@@ -243,6 +319,7 @@ export const VIEWER_HTML = `<!doctype html>
       if (!p.prompt) p.prompt = payload.prompt;
       if (!p.chips || !p.chips.length) p.chips = payload.chips;
       if (!p.aspect) p.aspect = payload.aspect;
+      if (!p.rerun) p.rerun = payload.rerun;
     }
     payload = p;
     render(p);
