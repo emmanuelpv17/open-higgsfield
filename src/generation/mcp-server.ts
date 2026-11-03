@@ -326,7 +326,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       title: "Show result",
       _meta: VIEWER_META,
       description:
-        "Shows a finished generation to the user inline, in a viewer box. generate's own box fills in by itself when the run finishes, so call this only when the user says they do not see the result (their box still shows it rendering, or there is none). Otherwise the result shows twice. It does not wait.",
+        "Shows a finished generation again, in a new viewer box. Do not call it after generate or check_generation: generate's own box fills in by itself when the run finishes, and this would show the result twice. Call it only when the user says, after the run finished, that they do not see the result, or asks to see an earlier result again. It does not wait.",
       inputSchema: { request_id: z.string().min(1) },
       annotations: { readOnlyHint: true },
     },
@@ -466,7 +466,7 @@ async function report(
       );
     } else {
       lines.push(
-        "Ready. The box generate opened for this run fills in by itself where the chat lets it check, so the user most likely sees the result already: tell them it is ready and do not show it again. Call show_result only if the user says that box still shows it rendering or there is no box. Do not paste these links unless the user asks for them.",
+        "Ready, and already on screen: the box generate opened for this run checks by itself and has filled in with the result. Do NOT call show_result now, even if the user asked to see it in the box; that would show it a second time. Just tell the user it is ready in the box above. Call show_result only if the user later says, in a new message, that they do not see it. Do not paste these links unless the user asks for them.",
       );
     }
   } else if (state === "queued") {
