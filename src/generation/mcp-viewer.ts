@@ -59,8 +59,20 @@ export const VIEWER_HTML = `<!doctype html>
   .media { position: relative; max-width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
   /* An image carries its own actions on it, bottom left, as on Higgsfield. */
   .over { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; }
-  /* A video's fullscreen square sits top right, clear of the player's bar. */
-  .over.corner { left: auto; right: 8px; top: 8px; bottom: auto; }
+  /* The video's own bar, drawn here so ⛶ can sit between the volume and
+     the menu: the browser's bar takes no extra buttons, and its own
+     fullscreen is blocked in the host's frame. */
+  .bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 6px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.7)); color: #fff; }
+  .seek { display: block; width: 100%; height: 4px; margin: 0 0 4px; accent-color: #fff; cursor: pointer; }
+  .row { display: flex; align-items: center; gap: 2px; }
+  .row .time { margin-left: 4px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .gap { flex: 1; }
+  .pb { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: #fff; cursor: pointer; }
+  .pb:hover { background: rgba(255, 255, 255, 0.15); }
+  .pb svg { width: 18px; height: 18px; fill: currentColor; }
+  .menu { position: absolute; right: 8px; bottom: 44px; min-width: 150px; padding: 4px; border-radius: 8px; background: rgba(20, 20, 20, 0.92); }
+  .menu button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: #fff; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  .menu button:hover { background: rgba(255, 255, 255, 0.12); }
   .ico { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 30px; height: 30px; padding: 0 9px; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(0, 0, 0, 0.55); color: #fff; backdrop-filter: blur(6px); }
   .ico.primary { background: #d2f34c; color: #111; }
   .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
@@ -69,7 +81,6 @@ export const VIEWER_HTML = `<!doctype html>
   .media img, .media video { display: block; width: auto; max-width: 100%; height: auto; max-height: 400px; }
   .grid.many .media img { max-height: 240px; }
   :root.full .media img, :root.full .media video { max-height: calc(100vh - 140px); }
-  video::-webkit-media-controls-fullscreen-button { display: none; }
   .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--soft); color: var(--fg); }
   .btn.primary { background: #d2f34c; color: #111; }
@@ -111,6 +122,7 @@ export const VIEWER_HTML = `<!doctype html>
     full = on;
     document.documentElement.classList.toggle("full", on);
     Array.prototype.forEach.call(document.querySelectorAll(".ico.fs"), function (b) { b.textContent = fsLabel(); b.title = fsTitle(); });
+    Array.prototype.forEach.call(document.querySelectorAll(".pb.fs"), function (b) { setIcon(b, on ? "exit" : "full", on ? "Salir de pantalla completa" : "Pantalla completa"); });
     resize();
   }
   /* The host's frame does not allow the video's own fullscreen button, so
@@ -196,6 +208,70 @@ export const VIEWER_HTML = `<!doctype html>
     over.appendChild(icon("fs", fsLabel(), fsTitle(), function () { toggleFull(img); }));
     return over;
   }
+  var SVG = {
+    play: '<path d="M8 5v14l11-7z"/>',
+    pause: '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>',
+    sound: '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/>',
+    mute: '<path d="M3 9v6h4l5 5V4L7 9H3zm18.6 3-2.8-2.8-1.4 1.4 2.8 2.8-2.8 2.8 1.4 1.4 2.8-2.8 2.8 2.8 1.4-1.4-2.8-2.8 2.8-2.8-1.4-1.4z"/>',
+    full: '<path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/>',
+    exit: '<path d="M8 4h2v6H4V8h4zm6 0h2v4h4v2h-6zM4 14h6v6H8v-4H4zm10 0h6v2h-4v4h-2z"/>',
+    more: '<path d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>',
+  };
+  function pb(name, title, onclick) {
+    var b = el("button", "pb");
+    b.title = title; b.setAttribute("aria-label", title);
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + SVG[name] + "</svg>";
+    b.onclick = function (event) { event.stopPropagation(); onclick(b); };
+    return b;
+  }
+  function setIcon(b, name, title) {
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + SVG[name] + "</svg>";
+    b.title = title; b.setAttribute("aria-label", title);
+  }
+  function clock(seconds) {
+    if (!isFinite(seconds)) seconds = 0;
+    var m = Math.floor(seconds / 60), s = Math.floor(seconds % 60);
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  /* Play, seek, time, then volume, ⛶ and ⋮ at the right, as the browser's
+     own bar lays them out. */
+  function playerBar(v, url) {
+    var bar = el("div", "bar");
+    var seek = el("input", "seek"); seek.type = "range"; seek.min = "0"; seek.max = "1000"; seek.value = "0";
+    seek.setAttribute("aria-label", "Avance");
+    seek.oninput = function () { if (v.duration) v.currentTime = (Number(seek.value) / 1000) * v.duration; };
+    bar.appendChild(seek);
+    var row = el("div", "row");
+    var play = pb("pause", "Pausar", function () { if (v.paused) v.play().catch(function () {}); else v.pause(); });
+    var time = el("span", "time", "0:00 / 0:00");
+    var sound = pb("mute", "Activar sonido", function () { v.muted = !v.muted; });
+    var fs = pb("full", "Pantalla completa", function () { toggleFull(v); });
+    fs.classList.add("fs");
+    var menu = null;
+    var more = pb("more", "Más opciones", function () {
+      if (menu) { menu.remove(); menu = null; return; }
+      menu = el("div", "menu");
+      [["Descargar", function () { download(url); }], ["Velocidad 1x", function () { v.playbackRate = 1; }], ["Velocidad 1.5x", function () { v.playbackRate = 1.5; }], ["Velocidad 2x", function () { v.playbackRate = 2; }]].forEach(function (item) {
+        var b = el("button", "", item[0]);
+        b.onclick = function (event) { event.stopPropagation(); item[1](); menu.remove(); menu = null; };
+        menu.appendChild(b);
+      });
+      bar.parentNode.appendChild(menu);
+    });
+    row.appendChild(play); row.appendChild(time);
+    row.appendChild(el("span", "gap"));
+    row.appendChild(sound); row.appendChild(fs); row.appendChild(more);
+    bar.appendChild(row);
+    function sync() {
+      setIcon(play, v.paused ? "play" : "pause", v.paused ? "Reproducir" : "Pausar");
+      setIcon(sound, v.muted ? "mute" : "sound", v.muted ? "Activar sonido" : "Silenciar");
+      time.textContent = clock(v.currentTime) + " / " + clock(v.duration);
+      if (v.duration) seek.value = String(Math.round((v.currentTime / v.duration) * 1000));
+    }
+    ["play", "pause", "volumechange", "timeupdate", "loadedmetadata"].forEach(function (name) { v.addEventListener(name, sync); });
+    v.onclick = function () { if (v.paused) v.play().catch(function () {}); else v.pause(); };
+    return bar;
+  }
   var promptOpen = false;
   /* The prompt, clamped to two lines with "Ver más", then the chips and the
      run's state. */
@@ -230,13 +306,10 @@ export const VIEWER_HTML = `<!doctype html>
       var grid = el("div", "grid" + (!video && images.length > 1 ? " many" : ""));
       var first = null;
       if (video) {
-        var v = el("video"); v.src = video; v.controls = true; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
-        /* The frame cannot go fullscreen itself; the ⛶ on the video does it. */
-        v.setAttribute("controlsList", "nofullscreen"); v.onloadedmetadata = resize;
+        var v = el("video"); v.src = video; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
+        v.onloadedmetadata = resize;
         var vtile = mediaTile(v);
-        var corner = el("div", "over corner");
-        corner.appendChild(icon("fs", fsLabel(), fsTitle(), function () { toggleFull(v); }));
-        vtile.appendChild(corner);
+        vtile.appendChild(playerBar(v, video));
         grid.appendChild(vtile);
         first = v;
       }
