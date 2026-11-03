@@ -40,17 +40,19 @@ export const VIEWER_HTML = `<!doctype html>
   .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; }
   .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { color: var(--muted); font-size: 12px; }
-  .grid { display: grid; gap: 4px; padding: 0 4px 4px; }
+  .grid { display: grid; gap: 4px; padding: 0 4px 4px; justify-items: center; }
   .grid.n2 { grid-template-columns: 1fr 1fr; }
   .grid.n3, .grid.n4 { grid-template-columns: 1fr 1fr; }
-  .media { position: relative; border-radius: 10px; overflow: hidden; background: #0001; }
+  .media { position: relative; max-width: 100%; border-radius: 10px; overflow: hidden; background: #0001; }
   /* A fixed cap, not vh: inline, vh is the frame's own height, which starts
      small and would keep a vertical video a sliver. Fullscreen fills the view. */
-  .media img, .media video { display: block; width: 100%; height: auto; max-height: 640px; object-fit: contain; background: #000; }
+  /* Media keep their own shape, so a vertical result is a narrow tile and not
+     a strip with black bars, at most 420px tall inline. */
+  .media img, .media video { display: block; width: auto; max-width: 100%; height: auto; max-height: 420px; background: #000; }
   :root.full .media img, :root.full .media video { max-height: calc(100vh - 56px); }
   video::-webkit-media-controls-fullscreen-button { display: none; }
   .acts { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; }
-  .dl { border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #000a; color: #fff; backdrop-filter: blur(4px); }
+  .dl { white-space: nowrap; border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #000a; color: #fff; backdrop-filter: blur(4px); }
   .wait { padding: 28px 12px 32px; text-align: center; color: var(--muted); }
   .spin { width: 22px; height: 22px; margin: 0 auto 10px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: r 0.9s linear infinite; }
   @keyframes r { to { transform: rotate(360deg); } }
@@ -82,11 +84,13 @@ export const VIEWER_HTML = `<!doctype html>
     if (ctx && ctx.displayMode) setFull(ctx.displayMode === "fullscreen");
   }
   var full = false;
-  function fsLabel() { return full ? "\u2715 Salir" : "\u26F6 Pantalla completa"; }
+  /* Icon-only, so it fits on a narrow vertical tile; the title names it. */
+  function fsLabel() { return full ? "\u2715" : "\u26F6"; }
+  function fsTitle() { return full ? "Salir de pantalla completa" : "Pantalla completa"; }
   function setFull(on) {
     full = on;
     document.documentElement.classList.toggle("full", on);
-    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = fsLabel(); });
+    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = fsLabel(); b.title = fsTitle(); b.setAttribute("aria-label", fsTitle()); });
     resize();
   }
   /* The host's frame does not allow the video's own fullscreen button, so
@@ -116,6 +120,7 @@ export const VIEWER_HTML = `<!doctype html>
     wrap.appendChild(node);
     var acts = el("div", "acts");
     var f = el("button", "dl fs", fsLabel());
+    f.title = fsTitle(); f.setAttribute("aria-label", fsTitle());
     f.onclick = function () { toggleFull(node); };
     acts.appendChild(f);
     var b = el("button", "dl", "Descargar");

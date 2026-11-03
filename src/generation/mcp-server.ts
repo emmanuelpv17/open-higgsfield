@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole, type ModelEntry } from "./catalog";
@@ -41,23 +41,28 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
      chat, instead of handing the user links. check_generation is text only:
      each call with a viewer adds a box to the chat, and a run can be checked
      many times. */
+  const viewer = (uri: string) => ({
+    contents: [
+      {
+        uri,
+        mimeType: VIEWER_MIME,
+        text: VIEWER_HTML,
+        _meta: { ui: { csp: { resourceDomains: viewerResourceDomains() }, prefersBorder: false } },
+      },
+    ],
+  });
+  const description = "Shows generated images and videos inline";
   for (const [name, uri] of [["Result viewer", VIEWER_URI], ["Result viewer (previous address)", LEGACY_VIEWER_URI]] as const) {
-    server.registerResource(
-      name,
-      uri,
-      { mimeType: VIEWER_MIME, description: "Shows generated images and videos inline" },
-      async () => ({
-        contents: [
-          {
-            uri,
-            mimeType: VIEWER_MIME,
-            text: VIEWER_HTML,
-            _meta: { ui: { csp: { resourceDomains: viewerResourceDomains() }, prefersBorder: false } },
-          },
-        ],
-      }),
-    );
+    server.registerResource(name, uri, { mimeType: VIEWER_MIME, description }, async () => viewer(uri));
   }
+  /* A host holding an older tool list asks for an earlier versioned address;
+     it gets the current viewer too. */
+  server.registerResource(
+    "Result viewer (earlier versions)",
+    new ResourceTemplate("ui://open-higgsfield/result-{version}.html", { list: undefined }),
+    { mimeType: VIEWER_MIME, description },
+    async (uri) => viewer(uri.href),
+  );
 
   server.registerTool(
     "list_models",
