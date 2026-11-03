@@ -47,7 +47,8 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
         uri,
         mimeType: VIEWER_MIME,
         text: VIEWER_HTML,
-        _meta: { ui: { csp: { resourceDomains: viewerResourceDomains() }, prefersBorder: false } },
+        /* connectDomains lets "Descargar" fetch the file it saves. */
+        _meta: { ui: { csp: { resourceDomains: viewerResourceDomains(), connectDomains: viewerResourceDomains() }, prefersBorder: false } },
       },
     ],
   });
