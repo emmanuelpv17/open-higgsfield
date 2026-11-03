@@ -112,6 +112,9 @@ const byMode =
    for at most 10s and bills 0.126–0.168/s. */
 const klingVideoReference = perSecond((settings) => (settings.mode === "std" ? 0.126 : 0.168));
 
+const kling4Plain = perSecond(byResolution({ "720p": 0.157, "1080p": 0.235 }));
+const kling4WithVideo = perSecond(byResolution({ "720p": 0.094, "1080p": 0.141 }));
+
 function klingOmni(rates: Record<string, number>, framesFiveOrTen: boolean): Pricer {
   const base = perSecond(byMode(rates));
   return {
@@ -235,6 +238,17 @@ const PRICING: Record<string, Pricer> = {
   "cinema-studio-4": perSecond(byResolution({ "480p": 0.2056, "720p": 0.4622 })),
   "kling-2.5": perSecond(() => 0.042),
   "kling-2.5-pro": perSecond(() => 0.07),
+  /* Billed on the output duration; reference-to-video with an input video is
+     sold at the lower rate the edit endpoint uses. */
+  "kling-4": {
+    price: (settings, sourceSeconds, media) =>
+      (has(media, "video") && !has(media, "start") ? kling4WithVideo : kling4Plain).price(
+        settings,
+        sourceSeconds,
+        media,
+      ),
+  },
+  "kling-4-edit": kling4WithVideo,
   "kling-o3": klingOmni({ std: 0.084, pro: 0.112, "4k": 0.42 }, false),
   "kling-o1": klingOmni({ std: 0.084, pro: 0.112 }, true),
   "kling-o3-edit": perSourceSecond(() => 0.126),

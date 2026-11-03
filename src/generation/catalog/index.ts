@@ -25,6 +25,7 @@ import {
   kling3Std,
   kling3Turbo,
 } from "./kling-3";
+import { kling4, kling4Edit } from "./kling-4";
 import { klingO1, klingO1Edit, klingO3, klingO3Edit } from "./kling-omni";
 import { ltx25Fast, ltx25Pro } from "./ltx-2.5";
 import { marketingStudioFlare, marketingStudioImage, marketingStudioSunburst } from "./marketing-studio";
@@ -62,6 +63,8 @@ export const MODELS: readonly ModelEntry[] = [
   seedance2,
   seedance2Fast,
   seedance2Mini,
+  kling4,
+  kling4Edit,
   kling3Turbo,
   kling3Std,
   kling3Pro,
