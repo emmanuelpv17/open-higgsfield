@@ -100,7 +100,7 @@ export const VIEWER_HTML = `<!doctype html>
     app.textContent = "";
     var head = el("div", "head");
     head.appendChild(el("div", "title", p.heading || "Higgsfield"));
-    head.appendChild(el("div", "meta", p.status === "completed" ? "Listo" : p.status === "queued" || p.status === "in_progress" || p.status === "unknown" ? "Generando…" : p.status));
+    head.appendChild(el("div", "meta", p.status === "completed" ? "Listo" : p.status === "queued" ? "En cola" : p.status === "in_progress" || p.status === "unknown" ? "Generando…" : p.status));
     app.appendChild(head);
     var video = safe(p.video), images = (p.images || []).map(safe).filter(Boolean);
     if (p.status === "completed" && (video || images.length)) {
@@ -119,8 +119,12 @@ export const VIEWER_HTML = `<!doctype html>
       var minutes = Math.floor((Date.now() - started) / 60000);
       var w = el("div", "wait");
       if (!stopped) w.appendChild(el("div", "spin"));
+      /* Queued: the run has not started. Briefly, that is normal; for long,
+         the API key's concurrency is full and it waits for another run. */
+      var queued = p.status === "queued";
       w.appendChild(document.createTextNode(
-        stopped ? "Sigue generándose en Higgsfield." : "Generando… se actualiza solo cuando esté listo." + (minutes ? " (" + minutes + " min)" : "")
+        stopped ? (queued ? "Sigue en cola en Higgsfield." : "Sigue generándose en Higgsfield.")
+          : (queued ? "En cola: esperando turno en Higgsfield. Si dura mucho, otro video de tu cuenta de la API sigue en proceso." : "Generando… se actualiza solo cuando esté listo.") + (minutes ? " (" + minutes + " min)" : "")
       ));
       if (stopped) w.appendChild(el("div", "note", stopped));
       app.appendChild(w);
