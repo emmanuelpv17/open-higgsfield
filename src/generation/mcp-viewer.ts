@@ -45,8 +45,13 @@ export const VIEWER_HTML = `<!doctype html>
   .grid.n2 { grid-template-columns: 1fr 1fr; }
   .grid.n3, .grid.n4 { grid-template-columns: 1fr 1fr; }
   .media { position: relative; border-radius: 10px; overflow: hidden; background: #0001; }
-  .media img, .media video { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; background: #000; }
-  .dl { position: absolute; right: 8px; bottom: 8px; border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #000a; color: #fff; backdrop-filter: blur(4px); }
+  /* A fixed cap, not vh: inline, vh is the frame's own height, which starts
+     small and would keep a vertical video a sliver. Fullscreen fills the view. */
+  .media img, .media video { display: block; width: 100%; height: auto; max-height: 640px; object-fit: contain; background: #000; }
+  :root.full .media img, :root.full .media video { max-height: calc(100vh - 56px); }
+  video::-webkit-media-controls-fullscreen-button { display: none; }
+  .acts { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; }
+  .dl { border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #000a; color: #fff; backdrop-filter: blur(4px); }
   .wait { padding: 28px 12px 32px; text-align: center; color: var(--muted); }
   .spin { width: 22px; height: 22px; margin: 0 auto 10px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: r 0.9s linear infinite; }
   @keyframes r { to { transform: rotate(360deg); } }
@@ -75,6 +80,25 @@ export const VIEWER_HTML = `<!doctype html>
 
   function applyTheme(ctx) {
     if (ctx && (ctx.theme === "dark" || ctx.theme === "light")) document.documentElement.setAttribute("data-theme", ctx.theme);
+    if (ctx && ctx.displayMode) setFull(ctx.displayMode === "fullscreen");
+  }
+  var full = false;
+  function setFull(on) {
+    full = on;
+    document.documentElement.classList.toggle("full", on);
+    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = on ? "Salir" : "Pantalla completa"; });
+    resize();
+  }
+  /* The host's frame does not allow the video's own fullscreen button, so
+     the viewer asks the host for its fullscreen mode, and falls back to the
+     browser's if the host has none. */
+  function toggleFull(node) {
+    request("ui/request-display-mode", { mode: full ? "inline" : "fullscreen" }, 5000)
+      .then(function (r) { setFull(!!r && r.mode === "fullscreen"); })
+      .catch(function () {
+        if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+        else if (node.requestFullscreen) node.requestFullscreen().catch(function () {});
+      });
   }
   function resize() { notify("ui/notifications/size-changed", { height: Math.ceil(document.documentElement.getBoundingClientRect().height) }); }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(document.documentElement);
@@ -90,9 +114,14 @@ export const VIEWER_HTML = `<!doctype html>
   function mediaTile(node, url) {
     var wrap = el("div", "media");
     wrap.appendChild(node);
+    var acts = el("div", "acts");
+    var f = el("button", "dl fs", full ? "Salir" : "Pantalla completa");
+    f.onclick = function () { toggleFull(node); };
+    acts.appendChild(f);
     var b = el("button", "dl", "Descargar");
     b.onclick = function () { download(url); };
-    wrap.appendChild(b);
+    acts.appendChild(b);
+    wrap.appendChild(acts);
     return wrap;
   }
 
@@ -107,6 +136,8 @@ export const VIEWER_HTML = `<!doctype html>
       var grid = el("div", "grid n" + Math.min(4, video ? 1 : images.length));
       if (video) {
         var v = el("video"); v.src = video; v.controls = true; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
+        /* The frame cannot go fullscreen itself; the button above does it. */
+        v.setAttribute("controlsList", "nofullscreen"); v.onloadedmetadata = resize;
         grid.appendChild(mediaTile(v, video));
       }
       images.slice(0, 4).forEach(function (src) {
