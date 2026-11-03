@@ -19,9 +19,23 @@ function authorized(given: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/* Some clients fold a query in the connector URL (`…/<secret>?v=2`, added to
+   make Claude fetch a fresh tool list) into the path segment, so the secret
+   arrives as "<secret>?v=2" or "<secret>%3Fv%3D2". Only what precedes it is
+   the secret. */
+function secretOf(segment: string): string {
+  let decoded = segment;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    /* A malformed escape is compared as given, and fails. */
+  }
+  return decoded.split(/[?&#;]/)[0] ?? "";
+}
+
 async function handle(request: Request, context: Context): Promise<Response> {
   const { secret } = await context.params;
-  if (!authorized(secret)) return new Response("Not found", { status: 404 });
+  if (!authorized(secretOf(secret))) return new Response("Not found", { status: 404 });
   return serveMcp(request, process.env.OPEN_HIGGSFIELD_MCP_API_KEY!.trim());
 }
 
