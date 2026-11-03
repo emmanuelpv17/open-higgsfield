@@ -303,7 +303,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       title: "Show result",
       _meta: VIEWER_META,
       description:
-        "Shows a finished generation to the user inline, in one viewer box with a download button. Call it once, after check_generation reports completed; it does not wait.",
+        "Shows a finished generation to the user inline, in one viewer box with a download button. Only for a run that finished after generate returned: call it once, after check_generation reports completed. If generate itself returned the finished result, the user already sees it in generate's box; do not call this, or the result shows twice. It does not wait.",
       inputSchema: { request_id: z.string().min(1) },
       annotations: { readOnlyHint: true },
     },
@@ -419,7 +419,7 @@ async function report(requestId: string, status: GenerationStatus | null, headin
       const inline = await Promise.all((status?.images ?? []).slice(0, 4).map((image) => inlineImage(image.url)));
       content.push(...inline.filter((item): item is Content => item !== null));
       lines.push(
-        "The result is shown to the user inline in the connector's viewer (with a download button), so do not paste these links unless the user asks for them.",
+        "The result is already shown to the user inline in this tool's viewer box (with a download button). Do not call show_result for it, or it shows twice, and do not paste these links unless the user asks for them.",
       );
     } else {
       lines.push("Ready. Call show_result with this request_id once to show it to the user; do not paste these links unless the user asks for them.");
