@@ -210,7 +210,16 @@ export const VIEWER_HTML = `<!doctype html>
     else if (m.method === "ui/resource-teardown" && m.id !== undefined) { if (timer) clearTimeout(timer); send({ jsonrpc: "2.0", id: m.id, result: {} }); }
   });
 
-  request("ui/initialize", { appInfo: { name: "open-higgsfield-viewer", version: "1.0.0" }, appCapabilities: {}, protocolVersion: "2026-01-26" })
+  /* A host that never hands this tile its tool result would leave it on
+     "Cargando…" for good; after a while it says where the result will be. */
+  setTimeout(function () {
+    if (payload) return;
+    app.textContent = "";
+    app.appendChild(el("div", "wait", "Claude te mostrará el resultado aquí en el chat cuando esté listo."));
+    resize();
+  }, 20000);
+
+  request("ui/initialize", { appInfo: { name: "open-higgsfield-viewer", version: "1.0.0" }, appCapabilities: {}, protocolVersion: "2026-01-26" }, 5000)
     .then(function (r) { applyTheme(r && r.hostContext); notify("ui/notifications/initialized"); resize(); })
     .catch(function () { notify("ui/notifications/initialized"); });
 })();
