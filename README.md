@@ -140,8 +140,8 @@ inside the chat — images, or the video player, each with a download button —
 instead of as links. While a run is still rendering, the tile asks
 `check_generation` again every 8–20 seconds, for up to an hour, and fills in
 when the result lands. `check_generation` itself is text only, so checking a
-long run adds no tiles; once it reports the run completed, Claude calls
-`show_result` once to show it.
+long run adds no tiles. `show_result` shows a result again, for when a
+tile could not fill in by itself.
 The viewer loads media only from `*.cloudfront.net`, `*.higgsfield.ai` and the
 deployment's own Blob store. Clients without MCP Apps still get the links as
 text.

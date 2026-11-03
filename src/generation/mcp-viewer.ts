@@ -70,9 +70,26 @@ export const VIEWER_HTML = `<!doctype html>
   .pb { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: #fff; cursor: pointer; }
   .pb:hover { background: rgba(255, 255, 255, 0.15); }
   .pb svg { width: 18px; height: 18px; fill: currentColor; }
-  .menu { position: absolute; right: 8px; bottom: 44px; min-width: 150px; padding: 4px; border-radius: 8px; background: rgba(20, 20, 20, 0.92); }
-  .menu button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: #fff; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
-  .menu button:hover { background: rgba(255, 255, 255, 0.12); }
+  /* The ⋮ menu, styled like the browser's own: a white card with icons, and
+     a speed list behind "Velocidad de reproducción". */
+  .menu { position: absolute; right: 8px; bottom: 46px; z-index: 2; width: 220px; max-width: calc(100% - 16px); max-height: calc(100% - 56px); overflow-y: auto; padding: 6px 0; border-radius: 6px; background: #fff; color: #202124; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
+  .menu button { display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 16px; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .menu button:hover, .menu button.on { background: #e8e8e8; }
+  .menu svg { flex: none; width: 20px; height: 20px; fill: currentColor; }
+  .menu .tick { margin-left: auto; color: #1a73e8; }
+  /* Fullscreen: the host's full view when it grants one, else the tile
+     itself grown in the chat. Black, the media centered, the bar across. */
+  :root.full body, :root.full .box { background: #000; padding: 0; }
+  :root.full .prompt, :root.full .more, :root.full .chips, :root.full .acts, :root.full .said, :root.full .over { display: none; }
+  :root.full .grid { display: block; }
+  :root.full .media { display: flex; align-items: center; justify-content: center; width: 100%; height: 100vh; max-width: none; border-radius: 0; }
+  /* Grown in the chat, the frame is as tall as its content, so vh would
+     not grow it: a fixed height does. */
+  :root.full.theater .media { height: 640px; }
+  :root.full .media img, :root.full .media video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
+  :root.full .grid .media ~ .media { display: none; }
+  .shut { position: absolute; right: 10px; top: 10px; z-index: 2; display: none; }
+  :root.full .shut { display: inline-flex; }
   .ico { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 30px; height: 30px; padding: 0 9px; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(0, 0, 0, 0.55); color: #fff; backdrop-filter: blur(6px); }
   .ico.primary { background: #d2f34c; color: #111; }
   .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
@@ -80,7 +97,6 @@ export const VIEWER_HTML = `<!doctype html>
      small and would keep a vertical video a sliver. Fullscreen fills the view. */
   .media img, .media video { display: block; width: auto; max-width: 100%; height: auto; max-height: 400px; }
   .grid.many .media img { max-height: 240px; }
-  :root.full .media img, :root.full .media video { max-height: calc(100vh - 140px); }
   .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--soft); color: var(--fg); }
   .btn.primary { background: #d2f34c; color: #111; }
@@ -125,32 +141,43 @@ export const VIEWER_HTML = `<!doctype html>
     Array.prototype.forEach.call(document.querySelectorAll(".pb.fs"), function (b) { setIcon(b, on ? "exit" : "full", on ? "Salir de pantalla completa" : "Pantalla completa"); });
     resize();
   }
-  /* The host's frame does not allow the video's own fullscreen button, so
-     the viewer asks the host for its fullscreen mode, and falls back to the
-     browser's if the host has none. */
+  /* The host's frame does not allow the video's own fullscreen, so ⛶ asks
+     the host for its full view, then the browser for fullscreen, and if
+     both say no grows the tile in the chat. Nothing opens elsewhere. */
+  var theater = false;
+  function setTheater(on) {
+    theater = on;
+    document.documentElement.classList.toggle("theater", on);
+    setFull(on);
+  }
   function toggleFull(node) {
+    if (theater) return setTheater(false);
+    if (document.fullscreenElement) { document.exitFullscreen().catch(function () {}); return; }
     request("ui/request-display-mode", { mode: full ? "inline" : "fullscreen" }, 5000)
-      .then(function (r) { setFull(!!r && r.mode === "fullscreen"); })
+      .then(function (r) {
+        if (full || (r && r.mode === "fullscreen")) return setFull(!!r && r.mode === "fullscreen");
+        throw new Error("not granted");
+      })
       .catch(function () {
-        if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
-        else if (node.requestFullscreen) node.requestFullscreen().catch(function () {});
+        var box = document.getElementById("app");
+        var tried = box.requestFullscreen ? box.requestFullscreen() : Promise.reject(new Error("none"));
+        tried.then(function () { setFull(true); }).catch(function () { setTheater(true); });
       });
   }
+  document.addEventListener("fullscreenchange", function () { if (!document.fullscreenElement && full && !theater) setFull(false); });
   function resize() { notify("ui/notifications/size-changed", { height: Math.ceil(document.documentElement.getBoundingClientRect().height) }); }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(document.documentElement);
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
   function safe(url) { return typeof url === "string" && /^https:\\/\\//.test(url) ? url : null; }
 
-  /* First the system's "Save as" dialog, so the user picks the folder and
-     name; hosts that keep it from a sandboxed frame get their own download,
-     and failing that the link opens. */
+  /* The system's "Save as" dialog, so the user picks the folder and name.
+     Where the host's frame keeps it closed, Claude is asked to save the
+     file, which it can do on the user's computer; nothing opens in a tab. */
   function download(url) {
     var name = url.split("/").pop().split("?")[0] || "resultado";
     var hostDownload = function () {
-      request("ui/download-file", { contents: [{ type: "resource_link", uri: url, name: name }] })
-        .then(function (r) { if (r && r.isError) throw new Error("denied"); })
-        .catch(function () { request("ui/open-link", { url: url }).catch(function () {}); });
+      ask("Guarda este archivo en mi computador. Pregúntame en qué carpeta lo quiero antes de guardarlo: " + url);
     };
     if (!window.showSaveFilePicker) return hostDownload();
     var ext = (name.split(".").pop() || "").toLowerCase();
@@ -210,12 +237,16 @@ export const VIEWER_HTML = `<!doctype html>
   }
   var SVG = {
     play: '<path d="M8 5v14l11-7z"/>',
-    pause: '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>',
-    sound: '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/>',
-    mute: '<path d="M3 9v6h4l5 5V4L7 9H3zm18.6 3-2.8-2.8-1.4 1.4 2.8 2.8-2.8 2.8 1.4 1.4 2.8-2.8 2.8 2.8 1.4-1.4-2.8-2.8 2.8-2.8-1.4-1.4z"/>',
-    full: '<path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/>',
-    exit: '<path d="M8 4h2v6H4V8h4zm6 0h2v4h4v2h-6zM4 14h6v6H8v-4H4zm10 0h6v2h-4v4h-2z"/>',
-    more: '<path d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>',
+    pause: '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>',
+    sound: '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>',
+    mute: '<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/>',
+    full: '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>',
+    exit: '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>',
+    more: '<path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>',
+    save: '<path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>',
+    speed: '<path d="M13.05 9.79 10 7.5v9l3.05-2.29L16 12zm0 0L10 7.5v9l3.05-2.29L16 12zM11 4.07V2.05c-2.01.2-3.84 1-5.32 2.21L7.1 5.69A7.94 7.94 0 0 1 11 4.07zM5.69 7.1 4.26 5.68A9.95 9.95 0 0 0 2.05 11h2.02c.18-1.46.76-2.79 1.62-3.9zM4.07 13H2.05c.2 2.01 1 3.84 2.21 5.32l1.43-1.43A7.87 7.87 0 0 1 4.07 13zm1.61 6.74A9.98 9.98 0 0 0 11 21.95v-2.02a7.94 7.94 0 0 1-3.9-1.62l-1.42 1.43zM22 12c0 5.16-3.92 9.42-8.95 9.95v-2.02C16.97 19.41 20 16.05 20 12s-3.03-7.41-6.95-7.93V2.05C18.08 2.58 22 6.84 22 12z"/>',
+    pip: '<path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/>',
+    back: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>',
   };
   function pb(name, title, onclick) {
     var b = el("button", "pb");
@@ -248,16 +279,40 @@ export const VIEWER_HTML = `<!doctype html>
     var fs = pb("full", "Pantalla completa", function () { toggleFull(v); });
     fs.classList.add("fs");
     var menu = null;
-    var more = pb("more", "Más opciones", function () {
-      if (menu) { menu.remove(); menu = null; return; }
+    function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+    function entry(iconName, text, onclick, extra) {
+      var b = el("button");
+      if (iconName) b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + SVG[iconName] + "</svg>";
+      b.appendChild(el("span", "", text));
+      if (extra) b.appendChild(extra);
+      b.onclick = function (event) { event.stopPropagation(); onclick(); };
+      return b;
+    }
+    function openMenu(page) {
+      closeMenu();
       menu = el("div", "menu");
-      [["Descargar", function () { download(url); }], ["Velocidad 1x", function () { v.playbackRate = 1; }], ["Velocidad 1.5x", function () { v.playbackRate = 1.5; }], ["Velocidad 2x", function () { v.playbackRate = 2; }]].forEach(function (item) {
-        var b = el("button", "", item[0]);
-        b.onclick = function (event) { event.stopPropagation(); item[1](); menu.remove(); menu = null; };
-        menu.appendChild(b);
-      });
+      if (page === "speed") {
+        menu.appendChild(entry("back", "Opciones", function () { openMenu("main"); }));
+        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].forEach(function (rate) {
+          var on = v.playbackRate === rate;
+          var b = entry("", rate === 1 ? "Normal" : String(rate).replace(".", ","), function () { v.playbackRate = rate; closeMenu(); }, on ? el("span", "tick", "\u2713") : null);
+          if (on) b.classList.add("on");
+          menu.appendChild(b);
+        });
+      } else {
+        menu.appendChild(entry("save", "Descargar", function () { closeMenu(); download(url); }));
+        menu.appendChild(entry("speed", "Velocidad de reproducción", function () { openMenu("speed"); }));
+        if (document.pictureInPictureEnabled && v.requestPictureInPicture) {
+          menu.appendChild(entry("pip", "Pantalla en pantalla", function () {
+            closeMenu();
+            (document.pictureInPictureElement ? document.exitPictureInPicture() : v.requestPictureInPicture()).catch(function () {});
+          }));
+        }
+      }
       bar.parentNode.appendChild(menu);
-    });
+    }
+    var more = pb("more", "Más opciones", function () { if (menu) closeMenu(); else openMenu("main"); });
+    document.addEventListener("click", function () { closeMenu(); });
     row.appendChild(play); row.appendChild(time);
     row.appendChild(el("span", "gap"));
     row.appendChild(sound); row.appendChild(fs); row.appendChild(more);
@@ -317,6 +372,8 @@ export const VIEWER_HTML = `<!doctype html>
         var img = el("img"); img.src = src; img.alt = "Resultado"; img.onload = resize;
         var tile = mediaTile(img);
         tile.appendChild(imageActions(img, src));
+        /* Fullscreen hides the image's actions; this ✕ brings it back. */
+        tile.appendChild(icon("shut", "\u2715", "Salir de pantalla completa", function () { toggleFull(img); }));
         grid.appendChild(tile);
         if (!first) first = img;
       });
