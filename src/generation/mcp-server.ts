@@ -279,7 +279,11 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       /* The run is paid for from here on, so nothing may keep its request id
          from reaching Claude. */
       const status = await waitFor(client, queued.requestId, deadline, null);
-      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, true, model.label);
+      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, true, model.label, {
+        prompt: prompt.trim(),
+        chips: chipsFor(model.label, sent),
+        aspect: typeof sent.aspectRatio === "string" ? sent.aspectRatio : undefined,
+      });
     },
   );
 
@@ -410,7 +414,27 @@ async function waitFor(client: Client, requestId: string, deadline: number, stat
 }
 
 /** `shown` says whether this reply opens a viewer box in the chat. */
-async function report(requestId: string, status: GenerationStatus | null, heading: string, shown: boolean, title = "") {
+/* The viewer's chips under the prompt: model, aspect ratio, duration,
+   resolution and audio, as far as the run has them. */
+function chipsFor(label: string, settings: Record<string, unknown>): string[] {
+  const chips = [label];
+  if (typeof settings.aspectRatio === "string") chips.push(settings.aspectRatio === "adaptive" || settings.aspectRatio === "auto" ? "Auto" : settings.aspectRatio);
+  if (settings.duration !== undefined && settings.duration !== "") chips.push(`${settings.duration}s`);
+  if (typeof settings.resolution === "string") chips.push(settings.resolution);
+  if (settings.generateAudio === true || settings.sound === true) chips.push("Audio");
+  return chips;
+}
+
+type ViewerExtras = Pick<ViewerPayload, "prompt" | "chips" | "aspect">;
+
+async function report(
+  requestId: string,
+  status: GenerationStatus | null,
+  heading: string,
+  shown: boolean,
+  title = "",
+  extras: ViewerExtras = {},
+) {
   /* No status read yet says nothing about the queue. */
   const state = status?.status ?? "unknown";
   const lines = [heading, `request_id: ${requestId}`, `status: ${state}`].filter(Boolean);
@@ -444,7 +468,7 @@ async function report(requestId: string, status: GenerationStatus | null, headin
     error = typeof status?.error === "string" ? status.error : JSON.stringify(status?.error ?? state);
     lines.push(`Not delivered: ${error}`);
   }
-  const structuredContent: ViewerPayload = { requestId, status: state, heading: title, images, video, error };
+  const structuredContent: ViewerPayload = { requestId, status: state, heading: title, images, video, error, ...extras };
   return { content: [{ type: "text" as const, text: lines.join("\n") }, ...content], structuredContent };
 }
 

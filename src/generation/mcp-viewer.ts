@@ -24,6 +24,13 @@ export type ViewerPayload = {
   images: string[];
   video: string | null;
   error: string | null;
+  /* What generate was asked, shown above the result; checks carry none and
+     the viewer keeps what it already has. */
+  prompt?: string;
+  /** Short labels: model, aspect ratio, duration, resolution, audio. */
+  chips?: string[];
+  /** "9:16" and the like, to size the waiting placeholder. */
+  aspect?: string;
 };
 
 export const VIEWER_HTML = `<!doctype html>
@@ -32,32 +39,36 @@ export const VIEWER_HTML = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root { color-scheme: light dark; --bg: transparent; --fg: #1a1a1a; --muted: #6b6b6b; --card: #f4f3ef; --line: #e2e0d8; --accent: #1a1a1a; }
+  :root { color-scheme: light dark; --bg: transparent; --fg: #1a1a1a; --muted: #6b6b6b; --card: #f4f3ef; --line: #e2e0d8; --accent: #1a1a1a; --soft: rgba(128, 128, 128, 0.14); }
   :root[data-theme="dark"] { --fg: #ecebe6; --muted: #a3a29c; --card: #262624; --line: #3a3936; --accent: #ecebe6; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .box { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; }
-  .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .meta { color: var(--muted); font-size: 12px; }
-  .grid { display: grid; gap: 4px; padding: 0 4px 4px; justify-items: center; }
-  .grid.n2 { grid-template-columns: 1fr 1fr; }
-  .grid.n3, .grid.n4 { grid-template-columns: 1fr 1fr; }
-  .media { position: relative; max-width: 100%; border-radius: 10px; overflow: hidden; background: #0001; }
+  /* Laid out like Higgsfield's own result: the prompt, a row of chips, the
+     media at its own shape on the left, and the actions under it. */
+  .box { padding: 4px 2px 6px; }
+  .prompt { font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .prompt.open { display: block; }
+  .more { margin-top: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0; }
+  .chip { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .state { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .media { max-width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
   /* A fixed cap, not vh: inline, vh is the frame's own height, which starts
      small and would keep a vertical video a sliver. Fullscreen fills the view. */
-  /* Media keep their own shape, so a vertical result is a narrow tile and not
-     a strip with black bars, at most 420px tall inline. */
-  .media img, .media video { display: block; width: auto; max-width: 100%; height: auto; max-height: 420px; background: #000; }
-  :root.full .media img, :root.full .media video { max-height: calc(100vh - 56px); }
+  .media img, .media video { display: block; width: auto; max-width: 100%; height: auto; max-height: 400px; }
+  .grid.many .media img { max-height: 240px; }
+  :root.full .media img, :root.full .media video { max-height: calc(100vh - 140px); }
   video::-webkit-media-controls-fullscreen-button { display: none; }
-  .acts { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; }
-  .dl { white-space: nowrap; border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: #000a; color: #fff; backdrop-filter: blur(4px); }
-  .wait { padding: 28px 12px 32px; text-align: center; color: var(--muted); }
-  .spin { width: 22px; height: 22px; margin: 0 auto 10px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: r 0.9s linear infinite; }
+  .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--soft); color: var(--fg); }
+  .btn.primary { background: #d2f34c; color: #111; }
+  .hold { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; max-width: 100%; padding: 16px; border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 12px; text-align: center; }
+  .spin { width: 22px; height: 22px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: r 0.9s linear infinite; }
   @keyframes r { to { transform: rotate(360deg); } }
-  .err { padding: 14px 12px 16px; color: #c0392b; }
-  .note { margin-top: 8px; font-size: 12px; }
+  .err { padding: 10px 0; color: #c0392b; }
+  .note { font-size: 12px; }
+  .wait { padding: 28px 12px 32px; text-align: center; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -84,13 +95,12 @@ export const VIEWER_HTML = `<!doctype html>
     if (ctx && ctx.displayMode) setFull(ctx.displayMode === "fullscreen");
   }
   var full = false;
-  /* Icon-only, so it fits on a narrow vertical tile; the title names it. */
   function fsLabel() { return full ? "\u2715" : "\u26F6"; }
-  function fsTitle() { return full ? "Salir de pantalla completa" : "Pantalla completa"; }
+  function fsTitle() { return full ? "Salir" : "Pantalla completa"; }
   function setFull(on) {
     full = on;
     document.documentElement.classList.toggle("full", on);
-    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = fsLabel(); b.title = fsTitle(); b.setAttribute("aria-label", fsTitle()); });
+    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = fsLabel() + " " + fsTitle(); });
     resize();
   }
   /* The host's frame does not allow the video's own fullscreen button, so
@@ -115,45 +125,75 @@ export const VIEWER_HTML = `<!doctype html>
       .then(function (r) { if (r && r.isError) throw new Error("denied"); })
       .catch(function () { request("ui/open-link", { url: url }).catch(function () {}); });
   }
-  function mediaTile(node, url) {
+  function mediaTile(node) {
     var wrap = el("div", "media");
     wrap.appendChild(node);
-    var acts = el("div", "acts");
-    var f = el("button", "dl fs", fsLabel());
-    f.title = fsTitle(); f.setAttribute("aria-label", fsTitle());
-    f.onclick = function () { toggleFull(node); };
-    acts.appendChild(f);
-    var b = el("button", "dl", "Descargar");
-    b.onclick = function () { download(url); };
-    acts.appendChild(b);
-    wrap.appendChild(acts);
     return wrap;
+  }
+  function button(cls, text, title, onclick) {
+    var b = el("button", "btn " + cls, text);
+    if (title) { b.title = title; b.setAttribute("aria-label", title); }
+    b.onclick = onclick;
+    return b;
+  }
+  var promptOpen = false;
+  /* The prompt, clamped to two lines with "Ver más", then the chips and the
+     run's state. */
+  function header(p) {
+    if (p.prompt) {
+      var text = el("div", "prompt" + (promptOpen ? " open" : ""), p.prompt);
+      app.appendChild(text);
+      if (p.prompt.length > 160) {
+        var more = el("button", "more", promptOpen ? "Ver menos" : "Ver más");
+        more.onclick = function () { promptOpen = !promptOpen; render(payload); };
+        app.appendChild(more);
+      }
+    }
+    var chips = el("div", "chips");
+    (p.chips && p.chips.length ? p.chips : [p.heading || "Higgsfield"]).forEach(function (c) { chips.appendChild(el("span", "chip", c)); });
+    chips.appendChild(el("span", "state", p.status === "completed" ? "Listo" : p.status === "queued" ? "En cola" : p.status === "in_progress" || p.status === "unknown" ? "Generando…" : ""));
+    app.appendChild(chips);
+  }
+  /* A waiting box shaped like the result will be, from its aspect ratio. */
+  function holdSize(aspect) {
+    var m = /^(\\d+):(\\d+)$/.exec(aspect || "");
+    var w = m ? Number(m[1]) : 16, h = m ? Number(m[2]) : 9;
+    var height = Math.min(400, Math.round(320 * h / w));
+    return { width: Math.round(height * w / h), height: height };
   }
 
   function render(p) {
     app.textContent = "";
-    var head = el("div", "head");
-    head.appendChild(el("div", "title", p.heading || "Higgsfield"));
-    head.appendChild(el("div", "meta", p.status === "completed" ? "Listo" : p.status === "queued" ? "En cola" : p.status === "in_progress" || p.status === "unknown" ? "Generando…" : p.status));
-    app.appendChild(head);
+    header(p);
     var video = safe(p.video), images = (p.images || []).map(safe).filter(Boolean);
     if (p.status === "completed" && (video || images.length)) {
-      var grid = el("div", "grid n" + Math.min(4, video ? 1 : images.length));
+      var grid = el("div", "grid" + (!video && images.length > 1 ? " many" : ""));
+      var first = null;
       if (video) {
         var v = el("video"); v.src = video; v.controls = true; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
-        /* The frame cannot go fullscreen itself; the button above does it. */
+        /* The frame cannot go fullscreen itself; the button below does it. */
         v.setAttribute("controlsList", "nofullscreen"); v.onloadedmetadata = resize;
-        grid.appendChild(mediaTile(v, video));
+        grid.appendChild(mediaTile(v));
+        first = v;
       }
       images.slice(0, 4).forEach(function (src) {
         var img = el("img"); img.src = src; img.alt = "Resultado"; img.onload = resize;
-        grid.appendChild(mediaTile(img, src));
+        grid.appendChild(mediaTile(img));
+        if (!first) first = img;
       });
       app.appendChild(grid);
+      var acts = el("div", "acts");
+      (video ? [video] : images.slice(0, 4)).forEach(function (url, i, all) {
+        acts.appendChild(button("primary", "\u2913 Descargar" + (all.length > 1 ? " " + (i + 1) : ""), "", function () { download(url); }));
+      });
+      acts.appendChild(button("fs", fsLabel() + " " + fsTitle(), "", function () { toggleFull(first); }));
+      app.appendChild(acts);
     } else if (p.status === "queued" || p.status === "in_progress" || p.status === "unknown") {
       if (!started) started = Date.now();
       var minutes = Math.floor((Date.now() - started) / 60000);
-      var w = el("div", "wait");
+      var size = holdSize(p.aspect);
+      var w = el("div", "hold");
+      w.style.width = size.width + "px"; w.style.minHeight = size.height + "px";
       if (!stopped) w.appendChild(el("div", "spin"));
       /* Queued: the run has not started. Briefly, that is normal; for long,
          the API key's concurrency is full and it waits for another run. */
@@ -197,7 +237,13 @@ export const VIEWER_HTML = `<!doctype html>
   function take(result) {
     var p = result && result.structuredContent;
     if (!p || typeof p !== "object" || !("status" in p)) return;
-    if (!p.heading && payload && payload.heading) p.heading = payload.heading;
+    /* A check carries only the status and the media; the rest stays. */
+    if (payload) {
+      if (!p.heading) p.heading = payload.heading;
+      if (!p.prompt) p.prompt = payload.prompt;
+      if (!p.chips || !p.chips.length) p.chips = payload.chips;
+      if (!p.aspect) p.aspect = payload.aspect;
+    }
     payload = p;
     render(p);
   }
