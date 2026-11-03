@@ -306,7 +306,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     {
       title: "Check generation",
       description:
-        "Checks a generation started with generate. Text only: it adds nothing to the chat, so it can be called as often as needed. If the run is still rendering, waits up to ~40 seconds for it before answering. When it reports completed, call show_result once to show the result to the user.",
+        "Checks a generation started with generate. Text only: it adds nothing to the chat, so it can be called as often as needed. If the run is still rendering, waits up to ~40 seconds for it before answering. generate's box shows the result by itself when it is ready.",
       inputSchema: {
         request_id: z.string().min(1),
         wait: z.boolean().default(true).describe("Wait up to ~40 s for a run still rendering; false answers at once"),
@@ -326,7 +326,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       title: "Show result",
       _meta: VIEWER_META,
       description:
-        "Shows a finished generation to the user inline, in one viewer box with a download button. Only for a run that finished after generate returned: call it once, after check_generation reports completed. If generate itself returned the finished result, the user already sees it in generate's box; do not call this, or the result shows twice. It does not wait.",
+        "Shows a finished generation to the user inline, in a viewer box. generate's own box fills in by itself when the run finishes, so call this only when the user says they do not see the result (their box still shows it rendering, or there is none). Otherwise the result shows twice. It does not wait.",
       inputSchema: { request_id: z.string().min(1) },
       annotations: { readOnlyHint: true },
     },
@@ -465,15 +465,17 @@ async function report(
         "The result is already shown to the user inline in this tool's viewer box (with a download button). Do not call show_result for it, or it shows twice, and do not paste these links unless the user asks for them.",
       );
     } else {
-      lines.push("Ready. Call show_result with this request_id once to show it to the user; do not paste these links unless the user asks for them.");
+      lines.push(
+        "Ready. The box generate opened for this run fills in by itself where the chat lets it check, so the user most likely sees the result already: tell them it is ready and do not show it again. Call show_result only if the user says that box still shows it rendering or there is no box. Do not paste these links unless the user asks for them.",
+      );
     }
   } else if (state === "queued") {
     lines.push(
-      "Queued: not rendering yet. A short wait here is normal; a long one means the API key's concurrency is full (another generation on this key is still running), and it starts by itself when that one finishes. Tell the user it is waiting its turn, not rendering. Check again with check_generation (text only, waits up to ~40 s each call), and when it reports completed call show_result once.",
+      "Queued: not rendering yet. A short wait here is normal; a long one means the API key's concurrency is full (another generation on this key is still running), and it starts by itself when that one finishes. Tell the user it is waiting its turn, not rendering. Check again with check_generation (text only, waits up to ~40 s each call) until it reports completed.",
     );
   } else if (state === "in_progress" || state === "unknown") {
     lines.push(
-      "Still rendering. Tell the user it is still rendering. Check again with check_generation (text only, waits up to ~40 s each call) rather than leaving them waiting, and when it reports completed call show_result once.",
+      "Still rendering. Tell the user it is still rendering. Check again with check_generation (text only, waits up to ~40 s each call) rather than leaving them waiting, until it reports completed.",
     );
   } else if (state === "nsfw") {
     error = "Higgsfield bloqueó el resultado por su filtro de contenido.";
