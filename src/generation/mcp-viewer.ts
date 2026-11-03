@@ -31,6 +31,9 @@ export type ViewerPayload = {
   chips?: string[];
   /** "9:16" and the like, to size the waiting placeholder. */
   aspect?: string;
+  /** generate's arguments for the run, with stored links instead of inline
+      files, so the viewer's "Recrear" can run it again. */
+  rerun?: { model: string; prompt: string; settings: Record<string, unknown>; media: Record<string, string | string[]> };
 };
 
 export const VIEWER_HTML = `<!doctype html>
@@ -186,6 +189,7 @@ export const VIEWER_HTML = `<!doctype html>
       (video ? [video] : images.slice(0, 4)).forEach(function (url, i, all) {
         acts.appendChild(button("primary", "\u2913 Descargar" + (all.length > 1 ? " " + (i + 1) : ""), "", function () { download(url); }));
       });
+      if (p.rerun) acts.appendChild(button("re", "\u21BB Recrear", "Generar otra vez con lo mismo (gasta saldo)", function () { recreate(this); }));
       acts.appendChild(button("fs", fsLabel() + " " + fsTitle(), "", function () { toggleFull(first); }));
       app.appendChild(acts);
     } else if (p.status === "queued" || p.status === "in_progress" || p.status === "unknown") {
@@ -229,6 +233,21 @@ export const VIEWER_HTML = `<!doctype html>
         });
     }, delay);
   }
+  /* Runs generate again with the same arguments, through the host, which
+     asks the user to approve it like any spend. The new run takes over this
+     tile: its own result, or its progress and polling. */
+  function recreate(btn) {
+    if (!payload || !payload.rerun) return;
+    btn.disabled = true; btn.textContent = "Recreando…";
+    request("tools/call", { name: "generate", arguments: payload.rerun }, 70000)
+      .then(function (result) {
+        if (!result || result.isError) throw new Error("refused");
+        if (timer) { clearTimeout(timer); timer = null; }
+        started = 0; misses = 0; stopped = "";
+        take(result);
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = "\u21BB Recrear"; });
+  }
   function stop(why) {
     stopped = why;
     if (payload) render(payload);
@@ -243,6 +262,7 @@ export const VIEWER_HTML = `<!doctype html>
       if (!p.prompt) p.prompt = payload.prompt;
       if (!p.chips || !p.chips.length) p.chips = payload.chips;
       if (!p.aspect) p.aspect = payload.aspect;
+      if (!p.rerun) p.rerun = payload.rerun;
     }
     payload = p;
     render(p);
