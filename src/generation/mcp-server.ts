@@ -404,7 +404,8 @@ async function waitFor(client: Client, requestId: string, deadline: number, stat
 
 /** `shown` says whether this reply opens a viewer box in the chat. */
 async function report(requestId: string, status: GenerationStatus | null, heading: string, shown: boolean, title = "") {
-  const state = status?.status ?? "queued";
+  /* No status read yet says nothing about the queue. */
+  const state = status?.status ?? "unknown";
   const lines = [heading, `request_id: ${requestId}`, `status: ${state}`].filter(Boolean);
   const content: Content[] = [];
   const images = state === "completed" ? (status?.images ?? []).map((image) => image.url) : [];
@@ -421,7 +422,11 @@ async function report(requestId: string, status: GenerationStatus | null, headin
     } else {
       lines.push("Ready. Call show_result with this request_id once to show it to the user; do not paste these links unless the user asks for them.");
     }
-  } else if (state === "queued" || state === "in_progress") {
+  } else if (state === "queued") {
+    lines.push(
+      "Queued: not rendering yet. A short wait here is normal; a long one means the API key's concurrency is full (another generation on this key is still running), and it starts by itself when that one finishes. Tell the user it is waiting its turn, not rendering. Check again with check_generation (text only, waits up to ~40 s each call), and when it reports completed call show_result once.",
+    );
+  } else if (state === "in_progress" || state === "unknown") {
     lines.push(
       "Still rendering. Tell the user it is still rendering. Check again with check_generation (text only, waits up to ~40 s each call) rather than leaving them waiting, and when it reports completed call show_result once.",
     );
