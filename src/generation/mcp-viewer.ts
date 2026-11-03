@@ -106,6 +106,7 @@ export const VIEWER_HTML = `<!doctype html>
   .err { padding: 10px 0; color: #c0392b; }
   .note { font-size: 12px; }
   .wait { padding: 28px 12px 32px; text-align: center; color: var(--muted); }
+  .wait .spin { margin: 0 auto 10px; }
 </style>
 </head>
 <body>

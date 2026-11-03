@@ -20,10 +20,13 @@ import { effectiveSettings, toPlatform } from "./to-platform";
 type Client = ReturnType<typeof createPlatformClient>;
 
 const ROLES: readonly MediaRole[] = ["start", "end", "reference", "video", "audio"];
-/* A generation call waits this long, counted from the start of the call (link
-   checks and submit included), before handing back the request id; the
-   function itself is capped at 60 seconds. */
+/* check_generation waits this long for a run still rendering; the function
+   itself is capped at 60 seconds. */
 const WAIT_MS = 38_000;
+/* generate itself answers sooner. Its viewer tile waits on this answer,
+   and Claude desktop sometimes gave up on a long one and left the tile on
+   "Cargando…"; a run still rendering gets a tile that checks by itself. */
+const GENERATE_WAIT_MS = 12_000;
 const POLL_MS = 3000;
 /* Images up to this size are sent inline so the chat can show them. */
 const INLINE_IMAGE_BYTES = 900_000;
@@ -207,7 +210,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       title: "Generate image or video",
       _meta: VIEWER_META,
       description:
-        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs are public https URLs (for example results of earlier generations). For a file the user attached in the chat, call create_upload_url first, run its curl command, and pass the url it returns (do not upload attachments to any other host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id, which waits up to ~40 seconds more each call (videos usually take a few minutes; Genjutsu and other video-to-video models take longer for long or 1080p sources). Tell the user the approximate cost.",
+        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs are public https URLs (for example results of earlier generations). For a file the user attached in the chat, call create_upload_url first, run its curl command, and pass the url it returns (do not upload attachments to any other host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~12 seconds: if the result is ready it is returned, otherwise its box shows the progress and fills in by itself; call check_generation with the request id to follow it yourself, which waits up to ~40 seconds each call (videos usually take a few minutes; Genjutsu and other video-to-video models take longer for long or 1080p sources). Tell the user the approximate cost.",
       inputSchema: {
         model: z.string().describe("Model id from list_models"),
         prompt: z.string().max(10000).default("").describe("What to generate"),
@@ -224,7 +227,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       },
     },
     async ({ model: modelId, prompt, settings, media }) => {
-      const deadline = Date.now() + WAIT_MS;
+      const deadline = Date.now() + GENERATE_WAIT_MS;
       const model = getModel(modelId);
       if (!model.promptOptional && !prompt.trim()) throw new Error(`${model.label} needs a prompt`);
       const raw = checkSettings(model, settings ?? {});
