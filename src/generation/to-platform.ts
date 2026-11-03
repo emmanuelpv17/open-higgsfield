@@ -24,6 +24,8 @@ const MAP: Record<string, Mapper> = {
   "minimax-hailuo-2.3": mapHailuo,
   "happy-horse-1": (plane) => mapHappyHorse(plane, "alibaba/happy-horse"),
   "happy-horse-1.1": (plane) => mapHappyHorse(plane, "alibaba/happy-horse/v1.1"),
+  "kling-4": mapKling4,
+  "kling-4-edit": mapKling4Edit,
   "kling-o3": (plane) => mapKlingOmni(plane, "kling-video/o3"),
   "kling-o1": (plane) => mapKlingOmni(plane, "kling-video/omni"),
   "kling-o3-edit": (plane) => mapKlingOmniEdit(plane, "kling-video/o3/video-edit"),
@@ -368,6 +370,61 @@ function mapHailuo(plane: GenerationPlane): Mapped {
       duration: Number(plane.settings.duration),
       prompt_optimizer: plane.settings.enhancePrompt,
       ...(start ? { image_url: start } : {}),
+    },
+  };
+}
+
+function mapKling4(plane: GenerationPlane): Mapped {
+  const start = urls(plane, "start")[0];
+  const end = urls(plane, "end")[0];
+  const refs = urls(plane, "reference");
+  const videos = urls(plane, "video");
+  const shared = {
+    prompt: plane.prompt.text,
+    duration: plane.settings.duration,
+    resolution: plane.settings.resolution,
+  };
+  if (start) {
+    /* No aspect ratio here: the frames set the framing. */
+    return {
+      path: "kling-video/v4.0/image-to-video",
+      body: {
+        ...shared,
+        image_url: start,
+        ...(refs.length ? { image_urls: refs.slice(0, 8) } : {}),
+        ...(end ? { end_image_url: end } : {}),
+      },
+    };
+  }
+  if (refs.length || videos.length) {
+    return {
+      path: "kling-video/v4.0/reference-to-video",
+      body: {
+        ...shared,
+        aspect_ratio: plane.settings.aspectRatio,
+        ...(refs.length ? { image_urls: refs } : {}),
+        ...(videos.length ? { video_urls: videos } : {}),
+      },
+    };
+  }
+  const aspect = plane.settings.aspectRatio;
+  return {
+    path: "kling-video/v4.0/text-to-video",
+    body: { ...shared, ...(aspect === "adaptive" ? {} : { aspect_ratio: aspect }) },
+  };
+}
+
+function mapKling4Edit(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference");
+  return {
+    path: "kling-video/v4.0/video-edit",
+    body: {
+      prompt: plane.prompt.text,
+      video_url: urls(plane, "video")[0],
+      duration: plane.settings.duration,
+      resolution: plane.settings.resolution,
+      aspect_ratio: plane.settings.aspectRatio,
+      ...(refs.length ? { image_urls: refs } : {}),
     },
   };
 }
