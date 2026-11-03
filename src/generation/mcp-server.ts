@@ -197,7 +197,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       title: "Generate image or video",
       _meta: VIEWER_META,
       description:
-        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs are public https URLs (for example results of earlier generations). For a file the user attached in the chat, call create_upload_url first, run its curl command, and pass the url it returns (do not upload attachments to any other host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id (videos usually take a few minutes). Tell the user the approximate cost.",
+        "Generates with one model, spending from the user's Higgsfield API balance. Settings not given use the model's defaults. Media inputs are public https URLs (for example results of earlier generations). For a file the user attached in the chat, call create_upload_url first, run its curl command, and pass the url it returns (do not upload attachments to any other host); tmpfiles.org page links and Dropbox share links are converted to direct downloads automatically, and every link is checked before anything is spent. Waits up to ~40 seconds: if the result is ready it is returned, otherwise call check_generation with the request id, which waits up to ~40 seconds more each call (videos usually take a few minutes; Genjutsu and other video-to-video models take longer for long or 1080p sources). Tell the user the approximate cost.",
       inputSchema: {
         model: z.string().describe("Model id from list_models"),
         prompt: z.string().max(10000).default("").describe("What to generate"),
@@ -268,18 +268,8 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
           : "unknown";
 
       /* The run is paid for from here on, so nothing may keep its request id
-         from reaching Claude: a failed status check ends the wait, and the
-         last poll cannot run past the deadline. */
-      let status: GenerationStatus | null = null;
-      while (Date.now() + POLL_MS < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-        try {
-          status = await client.status(queued.requestId);
-        } catch {
-          break;
-        }
-        if (!["queued", "in_progress", "unknown"].includes(status.status)) break;
-      }
+         from reaching Claude. */
+      const status = await waitFor(client, queued.requestId, deadline, null);
       return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, model.label);
     },
   );
@@ -289,11 +279,19 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     {
       title: "Check generation",
       _meta: VIEWER_META,
-      description: "Checks a generation started with generate and returns the result when it is ready. The result is shown to the user inline in the connector's viewer.",
-      inputSchema: { request_id: z.string().min(1) },
+      description:
+        "Checks a generation started with generate and returns the result when it is ready. If it is still rendering, waits up to ~40 seconds for it before answering, so a few calls in a row cover a few minutes. The result is shown to the user inline in the connector's viewer.",
+      inputSchema: {
+        request_id: z.string().min(1),
+        wait: z.boolean().default(true).describe("Wait up to ~40 s for a run still rendering; false answers at once"),
+      },
       annotations: { readOnlyHint: true },
     },
-    async ({ request_id }) => report(request_id, await client.status(request_id), ""),
+    async ({ request_id, wait }) => {
+      const first = await client.status(request_id);
+      const status = wait ? await waitFor(client, request_id, Date.now() + WAIT_MS, first) : first;
+      return report(request_id, status, "");
+    },
   );
 
   server.registerTool(
@@ -371,6 +369,25 @@ function checkSettings(model: ModelEntry, settings: Record<string, unknown>): Re
   return out;
 }
 
+function rendering(status: GenerationStatus | null) {
+  return !status || ["queued", "in_progress", "unknown"].includes(status.status);
+}
+
+/* Polls until the run settles or the deadline nears. A failed status check
+   ends the wait, and the last poll cannot run past the deadline, so the
+   request id always reaches Claude. */
+async function waitFor(client: Client, requestId: string, deadline: number, status: GenerationStatus | null) {
+  while (rendering(status) && Date.now() + POLL_MS < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    try {
+      status = await client.status(requestId);
+    } catch {
+      break;
+    }
+  }
+  return status;
+}
+
 async function report(requestId: string, status: GenerationStatus | null, heading: string, title = "") {
   const state = status?.status ?? "queued";
   const lines = [heading, `request_id: ${requestId}`, `status: ${state}`].filter(Boolean);
@@ -387,7 +404,7 @@ async function report(requestId: string, status: GenerationStatus | null, headin
     );
   } else if (state === "queued" || state === "in_progress") {
     lines.push(
-      "Still rendering. The connector's viewer shows the user a progress tile that fills in by itself when the result is ready; call check_generation with this request_id only if the user asks or the viewer is not available.",
+      "Still rendering. Tell the user it is still rendering; the connector's viewer shows a progress tile that fills in by itself when the result is ready. If the viewer is not available, or the user comes back or asks, call check_generation with this request_id (it waits up to ~40 s each call) instead of leaving them waiting.",
     );
   } else if (state === "nsfw") {
     error = "Higgsfield bloqueó el resultado por su filtro de contenido.";

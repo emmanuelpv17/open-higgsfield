@@ -51,20 +51,25 @@ export const VIEWER_HTML = `<!doctype html>
   .spin { width: 22px; height: 22px; margin: 0 auto 10px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: r 0.9s linear infinite; }
   @keyframes r { to { transform: rotate(360deg); } }
   .err { padding: 14px 12px 16px; color: #c0392b; }
+  .note { margin-top: 8px; font-size: 12px; }
 </style>
 </head>
 <body>
 <div id="app" class="box"><div class="wait"><div class="spin"></div>Cargando…</div></div>
 <script>
 (function () {
-  var nextId = 1, pending = {}, payload = null, polls = 0, timer = null;
+  var nextId = 1, pending = {}, payload = null, timer = null, started = 0, misses = 0, stopped = "";
   var app = document.getElementById("app");
 
   function send(msg) { window.parent.postMessage(msg, "*"); }
-  function request(method, params) {
+  /* A host that never answers must not leave the tile waiting on it forever. */
+  function request(method, params, timeoutMs) {
     var id = nextId++;
     send({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
-    return new Promise(function (resolve, reject) { pending[id] = { resolve: resolve, reject: reject }; });
+    return new Promise(function (resolve, reject) {
+      pending[id] = { resolve: resolve, reject: reject };
+      if (timeoutMs) setTimeout(function () { if (pending[id]) { delete pending[id]; reject(new Error("timeout")); } }, timeoutMs);
+    });
   }
   function notify(method, params) { send({ jsonrpc: "2.0", method: method, params: params || {} }); }
 
@@ -110,7 +115,14 @@ export const VIEWER_HTML = `<!doctype html>
       });
       app.appendChild(grid);
     } else if (p.status === "queued" || p.status === "in_progress" || p.status === "unknown") {
-      var w = el("div", "wait"); w.appendChild(el("div", "spin")); w.appendChild(document.createTextNode("Generando… se actualiza solo cuando esté listo."));
+      if (!started) started = Date.now();
+      var minutes = Math.floor((Date.now() - started) / 60000);
+      var w = el("div", "wait");
+      if (!stopped) w.appendChild(el("div", "spin"));
+      w.appendChild(document.createTextNode(
+        stopped ? "Sigue generándose en Higgsfield." : "Generando… se actualiza solo cuando esté listo." + (minutes ? " (" + minutes + " min)" : "")
+      ));
+      if (stopped) w.appendChild(el("div", "note", stopped));
       app.appendChild(w);
       schedule();
     } else {
@@ -119,15 +131,27 @@ export const VIEWER_HTML = `<!doctype html>
     resize();
   }
 
-  /* A run still rendering is asked about again every 8 s, for up to 15 min. */
+  /* A run still rendering is asked about again every 8 s, easing to 20 s,
+     for up to an hour. If the chat stops answering, or the hour runs out,
+     the tile says so and points the user to Claude instead of spinning on. */
+  var ASK_CLAUDE = "Escríbele a Claude «revisa el video» para traer el resultado.";
   function schedule() {
-    if (timer || !payload || !payload.requestId || polls >= 110) return;
+    if (timer || stopped || !payload || !payload.requestId) return;
+    if (Date.now() - started > 60 * 60000) return stop("Lleva más de una hora. " + ASK_CLAUDE);
+    var delay = Math.min(20000, 8000 + Math.floor((Date.now() - started) / 60000) * 1000);
     timer = setTimeout(function () {
-      timer = null; polls++;
-      request("tools/call", { name: "check_generation", arguments: { request_id: payload.requestId } })
-        .then(function (result) { take(result); })
-        .catch(function () { schedule(); });
-    }, 8000);
+      timer = null;
+      request("tools/call", { name: "check_generation", arguments: { request_id: payload.requestId, wait: false } }, 30000)
+        .then(function (result) { misses = 0; take(result); })
+        .catch(function () {
+          if (++misses >= 3) stop("Este recuadro no puede actualizarse solo aquí. " + ASK_CLAUDE);
+          else schedule();
+        });
+    }, delay);
+  }
+  function stop(why) {
+    stopped = why;
+    if (payload) render(payload);
   }
 
   function take(result) {
