@@ -112,7 +112,7 @@ export const VIEWER_HTML = `<!doctype html>
 <div id="app" class="box"><div class="wait"><div class="spin"></div>Cargando…</div></div>
 <script>
 (function () {
-  var nextId = 1, pending = {}, payload = null, timer = null, started = 0, misses = 0, stopped = "";
+  var nextId = 1, pending = {}, payload = null, timer = null, started = 0, misses = 0, stopped = "", checked = false;
   var app = document.getElementById("app");
 
   function send(msg) { window.parent.postMessage(msg, "*"); }
@@ -171,19 +171,48 @@ export const VIEWER_HTML = `<!doctype html>
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
   function safe(url) { return typeof url === "string" && /^https:\\/\\//.test(url) ? url : null; }
 
-  /* The system's "Save as" dialog, so the user picks the folder and name.
-     Where the host's frame keeps it closed, Claude is asked to save the
-     file, which it can do on the user's computer; nothing opens in a tab. */
+  /* A file name the user can recognise: the date and the prompt's first
+     words, as in "2026-11-03_taza-de-cafe-humeante.mp4". */
+  function fileName(url) {
+    var ext = ((url.split("?")[0].split("/").pop() || "").split(".").pop() || "png").toLowerCase();
+    var words = ((payload && payload.prompt) || "higgsfield").toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ").trim().split(" ").slice(0, 5).join("-");
+    return new Date().toISOString().slice(0, 10) + "_" + (words || "higgsfield") + "." + ext;
+  }
+  function mimeOf(name) {
+    var ext = name.split(".").pop();
+    return ext === "mp4" ? "video/mp4" : ext === "webm" ? "video/webm" : ext === "mov" ? "video/quicktime" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+  }
+  /* Saves the file through a "Save as" dialog where the user picks the
+     folder and name: the browser's own when the frame allows it, else the
+     host's, handed the file itself (a link alone it may open instead). */
   function download(url) {
-    var name = url.split("/").pop().split("?")[0] || "resultado";
-    var hostDownload = function () {
-      ask("Guarda este archivo en mi computador. Pregúntame en qué carpeta lo quiero antes de guardarlo: " + url);
-    };
-    if (!window.showSaveFilePicker) return hostDownload();
-    var ext = (name.split(".").pop() || "").toLowerCase();
-    var type = ext === "mp4" ? "video/mp4" : ext === "webm" ? "video/webm" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+    var name = fileName(url), type = mimeOf(name);
+    function hostSave() {
+      fetch(url)
+        .then(function (response) { if (!response.ok) throw new Error("fetch"); return response.blob(); })
+        .then(function (blob) {
+          return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function () { resolve(String(reader.result).split(",")[1] || ""); };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        })
+        .then(function (base64) {
+          return request("ui/download-file", { contents: [{ type: "resource", resource: { uri: "file:///" + name, mimeType: type, blob: base64 } }] }, 120000);
+        })
+        .then(function (r) { if (r && r.isError) throw new Error("denied"); })
+        .catch(function () {
+          request("ui/download-file", { contents: [{ type: "resource_link", uri: url, name: name, mimeType: type }] }, 15000)
+            .then(function (r) { if (r && r.isError) throw new Error("denied"); })
+            .catch(function () { said = "No se pudo descargar desde aquí. Haz clic derecho sobre el video o la imagen y elige guardar."; if (payload) render(payload); });
+        });
+    }
+    if (!window.showSaveFilePicker) return hostSave();
     var types = [{ description: type.indexOf("video") === 0 ? "Video" : "Imagen", accept: {} }];
-    types[0].accept[type] = ["." + (ext || "png")];
+    types[0].accept[type] = ["." + name.split(".").pop()];
     window.showSaveFilePicker({ suggestedName: name, types: types })
       .then(function (handle) {
         return fetch(url).then(function (response) {
@@ -194,7 +223,7 @@ export const VIEWER_HTML = `<!doctype html>
       .catch(function (error) {
         /* The user closing the dialog is an answer, not a failure. */
         if (error && error.name === "AbortError") return;
-        hostDownload();
+        hostSave();
       });
   }
   function mediaTile(node) {
@@ -413,10 +442,13 @@ export const VIEWER_HTML = `<!doctype html>
   function schedule() {
     if (timer || stopped || !payload || !payload.requestId) return;
     if (Date.now() - started > 60 * 60000) return stop("Lleva más de una hora. " + ASK_CLAUDE);
-    var delay = Math.min(20000, 8000 + Math.floor((Date.now() - started) / 60000) * 1000);
+    /* The first check runs at once: a chat reopened later replays the state
+       the run had then, which may long be finished. */
+    var delay = checked ? Math.min(20000, 8000 + Math.floor((Date.now() - started) / 60000) * 1000) : 300;
+    checked = true;
     timer = setTimeout(function () {
       timer = null;
-      request("tools/call", { name: "check_generation", arguments: { request_id: payload.requestId, wait: false } }, 30000)
+      request("tools/call", { name: "check_generation", arguments: { request_id: payload.requestId, wait: false } }, 20000)
         .then(function (result) { misses = 0; take(result); })
         .catch(function () {
           if (++misses >= 3) stop("Este recuadro no puede actualizarse solo aquí. " + ASK_CLAUDE);
