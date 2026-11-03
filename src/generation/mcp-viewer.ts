@@ -59,6 +59,8 @@ export const VIEWER_HTML = `<!doctype html>
   .media { position: relative; max-width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
   /* An image carries its own actions on it, bottom left, as on Higgsfield. */
   .over { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; }
+  /* A video's fullscreen square sits top right, clear of the player's bar. */
+  .over.corner { left: auto; right: 8px; top: 8px; bottom: auto; }
   .ico { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 30px; height: 30px; padding: 0 9px; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(0, 0, 0, 0.55); color: #fff; backdrop-filter: blur(6px); }
   .ico.primary { background: #d2f34c; color: #111; }
   .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
@@ -108,7 +110,6 @@ export const VIEWER_HTML = `<!doctype html>
   function setFull(on) {
     full = on;
     document.documentElement.classList.toggle("full", on);
-    Array.prototype.forEach.call(document.querySelectorAll(".btn.fs"), function (b) { b.textContent = fsLabel() + " " + fsTitle(); });
     Array.prototype.forEach.call(document.querySelectorAll(".ico.fs"), function (b) { b.textContent = fsLabel(); b.title = fsTitle(); });
     resize();
   }
@@ -230,9 +231,13 @@ export const VIEWER_HTML = `<!doctype html>
       var first = null;
       if (video) {
         var v = el("video"); v.src = video; v.controls = true; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
-        /* The frame cannot go fullscreen itself; the button below does it. */
+        /* The frame cannot go fullscreen itself; the ⛶ on the video does it. */
         v.setAttribute("controlsList", "nofullscreen"); v.onloadedmetadata = resize;
-        grid.appendChild(mediaTile(v));
+        var vtile = mediaTile(v);
+        var corner = el("div", "over corner");
+        corner.appendChild(icon("fs", fsLabel(), fsTitle(), function () { toggleFull(v); }));
+        vtile.appendChild(corner);
+        grid.appendChild(vtile);
         first = v;
       }
       images.slice(0, 4).forEach(function (src) {
@@ -246,7 +251,6 @@ export const VIEWER_HTML = `<!doctype html>
       var acts = el("div", "acts");
       if (video) acts.appendChild(button("primary", "\u2913 Descargar", "", function () { download(video); }));
       if (p.rerun) acts.appendChild(button("re", "\u21BB Recrear", "Generar otra vez con lo mismo (gasta saldo)", function () { recreate(this); }));
-      if (video) acts.appendChild(button("fs", fsLabel() + " " + fsTitle(), "", function () { toggleFull(first); }));
       if (acts.childNodes.length) app.appendChild(acts);
       if (said) app.appendChild(el("div", "said", said));
     } else if (p.status === "queued" || p.status === "in_progress" || p.status === "unknown") {
