@@ -1,5 +1,5 @@
 /* The result viewer Claude shows inline (an MCP App): a sandboxed page that
-   receives each generate / check_generation result from the host and shows
+   receives each generate / show_result result from the host and shows
    the images or the video in the chat itself, rather than as links. While a
    run is still rendering it asks check_generation again on its own, so the
    tile fills in when the result lands. It speaks the MCP Apps postMessage
@@ -134,7 +134,7 @@ export const VIEWER_HTML = `<!doctype html>
   /* A run still rendering is asked about again every 8 s, easing to 20 s,
      for up to an hour. If the chat stops answering, or the hour runs out,
      the tile says so and points the user to Claude instead of spinning on. */
-  var ASK_CLAUDE = "Escríbele a Claude «revisa el video» para traer el resultado.";
+  var ASK_CLAUDE = "Claude te lo muestra cuando esté listo; si no lo hace, escríbele «revisa el video».";
   function schedule() {
     if (timer || stopped || !payload || !payload.requestId) return;
     if (Date.now() - started > 60 * 60000) return stop("Lleva más de una hora. " + ASK_CLAUDE);

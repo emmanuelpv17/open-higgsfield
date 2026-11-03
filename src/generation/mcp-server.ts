@@ -37,8 +37,10 @@ const NOTHING_SPENT = "No se envió nada a Higgsfield (no se gastó saldo).";
 export function createStudioMcpServer(client: Client, apiKey: string): McpServer {
   const server = new McpServer({ name: "open-higgsfield", version: "1.0.0" });
 
-  /* generate and check_generation show their result in this viewer, inline
-     in the chat, instead of handing the user links. */
+  /* generate and show_result show their result in this viewer, inline in the
+     chat, instead of handing the user links. check_generation is text only:
+     each call with a viewer adds a box to the chat, and a run can be checked
+     many times. */
   server.registerResource(
     "Result viewer",
     VIEWER_URI,
@@ -270,7 +272,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       /* The run is paid for from here on, so nothing may keep its request id
          from reaching Claude. */
       const status = await waitFor(client, queued.requestId, deadline, null);
-      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, model.label);
+      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, true, model.label);
     },
   );
 
@@ -278,9 +280,8 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     "check_generation",
     {
       title: "Check generation",
-      _meta: VIEWER_META,
       description:
-        "Checks a generation started with generate and returns the result when it is ready. If it is still rendering, waits up to ~40 seconds for it before answering, so a few calls in a row cover a few minutes. The result is shown to the user inline in the connector's viewer.",
+        "Checks a generation started with generate. Text only: it adds nothing to the chat, so it can be called as often as needed. If the run is still rendering, waits up to ~40 seconds for it before answering. When it reports completed, call show_result once to show the result to the user.",
       inputSchema: {
         request_id: z.string().min(1),
         wait: z.boolean().default(true).describe("Wait up to ~40 s for a run still rendering; false answers at once"),
@@ -290,8 +291,21 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     async ({ request_id, wait }) => {
       const first = await client.status(request_id);
       const status = wait ? await waitFor(client, request_id, Date.now() + WAIT_MS, first) : first;
-      return report(request_id, status, "");
+      return report(request_id, status, "", false);
     },
+  );
+
+  server.registerTool(
+    "show_result",
+    {
+      title: "Show result",
+      _meta: VIEWER_META,
+      description:
+        "Shows a finished generation to the user inline, in one viewer box with a download button. Call it once, after check_generation reports completed; it does not wait.",
+      inputSchema: { request_id: z.string().min(1) },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ request_id }) => report(request_id, await client.status(request_id), "", true),
   );
 
   server.registerTool(
@@ -388,7 +402,8 @@ async function waitFor(client: Client, requestId: string, deadline: number, stat
   return status;
 }
 
-async function report(requestId: string, status: GenerationStatus | null, heading: string, title = "") {
+/** `shown` says whether this reply opens a viewer box in the chat. */
+async function report(requestId: string, status: GenerationStatus | null, heading: string, shown: boolean, title = "") {
   const state = status?.status ?? "queued";
   const lines = [heading, `request_id: ${requestId}`, `status: ${state}`].filter(Boolean);
   const content: Content[] = [];
@@ -397,14 +412,18 @@ async function report(requestId: string, status: GenerationStatus | null, headin
   let error: string | null = null;
   if (state === "completed") {
     lines.push(...[...images, ...(video ? [video] : [])].map((url) => `result: ${url}`));
-    const inline = await Promise.all((status?.images ?? []).slice(0, 4).map((image) => inlineImage(image.url)));
-    content.push(...inline.filter((item): item is Content => item !== null));
-    lines.push(
-      "The result is already shown to the user inline in the connector's viewer (with a download button), so do not paste these links unless the user asks for them.",
-    );
+    if (shown) {
+      const inline = await Promise.all((status?.images ?? []).slice(0, 4).map((image) => inlineImage(image.url)));
+      content.push(...inline.filter((item): item is Content => item !== null));
+      lines.push(
+        "The result is shown to the user inline in the connector's viewer (with a download button), so do not paste these links unless the user asks for them.",
+      );
+    } else {
+      lines.push("Ready. Call show_result with this request_id once to show it to the user; do not paste these links unless the user asks for them.");
+    }
   } else if (state === "queued" || state === "in_progress") {
     lines.push(
-      "Still rendering. Tell the user it is still rendering; the connector's viewer shows a progress tile that fills in by itself when the result is ready. If the viewer is not available, or the user comes back or asks, call check_generation with this request_id (it waits up to ~40 s each call) instead of leaving them waiting.",
+      "Still rendering. Tell the user it is still rendering. Check again with check_generation (text only, waits up to ~40 s each call) rather than leaving them waiting, and when it reports completed call show_result once.",
     );
   } else if (state === "nsfw") {
     error = "Higgsfield bloqueó el resultado por su filtro de contenido.";

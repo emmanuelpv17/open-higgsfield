@@ -85,7 +85,8 @@ Next.js 16 App Router on Vercel · React 19 · plain CSS · Zustand · pnpm
 
 The deployment is also a remote MCP server, so Claude can list models,
 generate and check results from a chat. Tools: `list_models`, `list_options`,
-`create_upload_url`, `generate`, `check_generation`, `cancel_generation`.
+`create_upload_url`, `generate`, `check_generation`, `show_result`,
+`cancel_generation`.
 There are two endpoints:
 
 ### `/api/mcp` — each person brings their own key
@@ -133,11 +134,14 @@ rotate the secret if it leaks.
 
 ### Results inline
 
-`generate` and `check_generation` declare an MCP Apps viewer
+`generate` and `show_result` declare an MCP Apps viewer
 (`ui://open-higgsfield/result.html`). In Claude, the result shows up in a tile
 inside the chat — images, or the video player, each with a download button —
 instead of as links. While a run is still rendering, the tile asks
-`check_generation` again every 8 seconds and fills in when the result lands.
+`check_generation` again every 8–20 seconds, for up to an hour, and fills in
+when the result lands. `check_generation` itself is text only, so checking a
+long run adds no tiles; once it reports the run completed, Claude calls
+`show_result` once to show it.
 The viewer loads media only from `*.cloudfront.net`, `*.higgsfield.ai` and the
 deployment's own Blob store. Clients without MCP Apps still get the links as
 text.
