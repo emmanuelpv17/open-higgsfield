@@ -82,10 +82,11 @@ export const VIEWER_HTML = `<!doctype html>
     if (ctx && ctx.displayMode) setFull(ctx.displayMode === "fullscreen");
   }
   var full = false;
+  function fsLabel() { return full ? "\u2715 Salir" : "\u26F6 Pantalla completa"; }
   function setFull(on) {
     full = on;
     document.documentElement.classList.toggle("full", on);
-    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = on ? "Salir" : "Pantalla completa"; });
+    Array.prototype.forEach.call(document.querySelectorAll(".fs"), function (b) { b.textContent = fsLabel(); });
     resize();
   }
   /* The host's frame does not allow the video's own fullscreen button, so
@@ -114,7 +115,7 @@ export const VIEWER_HTML = `<!doctype html>
     var wrap = el("div", "media");
     wrap.appendChild(node);
     var acts = el("div", "acts");
-    var f = el("button", "dl fs", full ? "Salir" : "Pantalla completa");
+    var f = el("button", "dl fs", fsLabel());
     f.onclick = function () { toggleFull(node); };
     acts.appendChild(f);
     var b = el("button", "dl", "Descargar");
@@ -218,7 +219,12 @@ export const VIEWER_HTML = `<!doctype html>
     resize();
   }, 20000);
 
-  request("ui/initialize", { appInfo: { name: "open-higgsfield-viewer", version: "1.0.0" }, appCapabilities: {}, protocolVersion: "2026-01-26" }, 5000)
+  /* Claude only grants fullscreen to an app that declares it here. */
+  request("ui/initialize", {
+    appInfo: { name: "open-higgsfield-viewer", version: "1.0.0" },
+    appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+    protocolVersion: "2026-01-26",
+  }, 5000)
     .then(function (r) { applyTheme(r && r.hostContext); notify("ui/notifications/initialized"); resize(); })
     .catch(function () { notify("ui/notifications/initialized"); });
 })();
