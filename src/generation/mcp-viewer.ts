@@ -189,9 +189,20 @@ export const VIEWER_HTML = `<!doctype html>
      host's, handed the file itself (a link alone it may open instead). */
   function download(url) {
     var name = fileName(url), type = mimeOf(name);
+    /* Each step names itself in the note when all fail, so a host that
+       refuses can be told apart from a file the frame could not fetch. */
+    var why = [];
+    function reason(step) {
+      return function (error) {
+        var text = error && (error.message || error.code || (error.error && error.error.message)) || String(error);
+        why.push(step + ": " + String(text).slice(0, 80));
+        throw error;
+      };
+    }
     function hostSave() {
       fetch(url)
-        .then(function (response) { if (!response.ok) throw new Error("fetch"); return response.blob(); })
+        .catch(reason("archivo"))
+        .then(function (response) { if (!response.ok) throw new Error("archivo: HTTP " + response.status); return response.blob(); })
         .then(function (blob) {
           return new Promise(function (resolve, reject) {
             var reader = new FileReader();
@@ -201,19 +212,25 @@ export const VIEWER_HTML = `<!doctype html>
           });
         })
         .then(function (base64) {
-          return request("ui/download-file", { contents: [{ type: "resource", resource: { uri: "file:///" + name, mimeType: type, blob: base64 } }] }, 120000);
+          return request("ui/download-file", { contents: [{ type: "resource", resource: { uri: "file:///" + name, mimeType: type, blob: base64 } }] }, 120000)
+            .catch(reason("Claude (archivo)"));
         })
-        .then(function (r) { if (r && r.isError) throw new Error("denied"); })
-        .catch(function () {
+        .then(function (r) { if (r && r.isError) throw new Error("Claude rechazó el archivo"); })
+        .catch(function (error) {
+          if (why.length === 0 || why[why.length - 1].indexOf("Claude") !== 0) why.push(String((error && error.message) || error).slice(0, 80));
           request("ui/download-file", { contents: [{ type: "resource_link", uri: url, name: name, mimeType: type }] }, 15000)
-            .then(function (r) { if (r && r.isError) throw new Error("denied"); })
-            .catch(function () { said = "No se pudo descargar desde aquí. Haz clic derecho sobre el video o la imagen y elige guardar."; if (payload) render(payload); });
+            .catch(reason("Claude (enlace)"))
+            .then(function (r) { if (r && r.isError) { why.push("Claude (enlace): rechazado"); throw new Error("denied"); } })
+            .catch(function () {
+              said = "No se pudo descargar desde aquí (" + why.join(" · ") + "). Haz clic derecho sobre el video o la imagen y elige guardar.";
+              if (payload) render(payload);
+            });
         });
     }
     if (!window.showSaveFilePicker) return hostSave();
     var types = [{ description: type.indexOf("video") === 0 ? "Video" : "Imagen", accept: {} }];
     types[0].accept[type] = ["." + name.split(".").pop()];
-    window.showSaveFilePicker({ suggestedName: name, types: types })
+    window.showSaveFilePicker({ suggestedName: name, types: types }).catch(reason("Guardar como"))
       .then(function (handle) {
         return fetch(url).then(function (response) {
           if (!response.ok) throw new Error("fetch");
