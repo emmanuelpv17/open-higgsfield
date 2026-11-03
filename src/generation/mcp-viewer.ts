@@ -5,7 +5,6 @@
    tile fills in when the result lands. It speaks the MCP Apps postMessage
    protocol directly; nothing is loaded from outside. */
 
-export const VIEWER_URI = "ui://open-higgsfield/result.html";
 export const VIEWER_MIME = "text/html;profile=mcp-app";
 
 /** Hosts the viewer may load media from: the platform's CDN and this
@@ -226,3 +225,17 @@ export const VIEWER_HTML = `<!doctype html>
 </script>
 </body>
 </html>`;
+
+/* Hosts cache a viewer by its URI, so a fixed URI kept showing the first
+   viewer they fetched after it changed. The URI carries a hash of the HTML,
+   so every change is fetched afresh. */
+function hashOf(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193);
+  return (hash >>> 0).toString(36);
+}
+
+export const VIEWER_URI = `ui://open-higgsfield/result-${hashOf(VIEWER_HTML)}.html`;
+/** The URI before it was versioned. Tool lists a host still holds point
+    here, so it serves the current viewer too. */
+export const LEGACY_VIEWER_URI = "ui://open-higgsfield/result.html";

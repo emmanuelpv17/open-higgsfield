@@ -7,7 +7,7 @@ import { keyWorks } from "./key-check";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { storeDataUri } from "./mcp-media";
 import { MCP_UPLOAD_HOURS, createUploadTicket } from "./mcp-upload";
-import { VIEWER_HTML, VIEWER_MIME, VIEWER_URI, viewerResourceDomains, type ViewerPayload } from "./mcp-viewer";
+import { LEGACY_VIEWER_URI, VIEWER_HTML, VIEWER_MIME, VIEWER_URI, viewerResourceDomains, type ViewerPayload } from "./mcp-viewer";
 import { PlatformError, createPlatformClient, type GenerationStatus } from "./platform";
 import { presetId } from "./presets";
 import { estimateCost, formatCost, pricedFromSource, scaleCost } from "./pricing";
@@ -41,21 +41,23 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
      chat, instead of handing the user links. check_generation is text only:
      each call with a viewer adds a box to the chat, and a run can be checked
      many times. */
-  server.registerResource(
-    "Result viewer",
-    VIEWER_URI,
-    { mimeType: VIEWER_MIME, description: "Shows generated images and videos inline" },
-    async () => ({
-      contents: [
-        {
-          uri: VIEWER_URI,
-          mimeType: VIEWER_MIME,
-          text: VIEWER_HTML,
-          _meta: { ui: { csp: { resourceDomains: viewerResourceDomains() }, prefersBorder: false } },
-        },
-      ],
-    }),
-  );
+  for (const [name, uri] of [["Result viewer", VIEWER_URI], ["Result viewer (previous address)", LEGACY_VIEWER_URI]] as const) {
+    server.registerResource(
+      name,
+      uri,
+      { mimeType: VIEWER_MIME, description: "Shows generated images and videos inline" },
+      async () => ({
+        contents: [
+          {
+            uri,
+            mimeType: VIEWER_MIME,
+            text: VIEWER_HTML,
+            _meta: { ui: { csp: { resourceDomains: viewerResourceDomains() }, prefersBorder: false } },
+          },
+        ],
+      }),
+    );
+  }
 
   server.registerTool(
     "list_models",
