@@ -5,7 +5,7 @@ import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole, 
 import { encodeTraits, selectionFor } from "./influencer";
 import { downloadLink } from "./download-link";
 import { keyWorks } from "./key-check";
-import { findRun, readViewerLog, rememberRun, writeViewerLog, type RunArgs } from "./run-index";
+import { findRun, rememberRun, type RunArgs } from "./run-index";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { storeDataUri } from "./mcp-media";
 import { MCP_UPLOAD_HOURS, createUploadTicket } from "./mcp-upload";
@@ -324,12 +324,6 @@ export function createStudioMcpServer(client: Client, apiKey: string, origin = "
       /* A restored tile knows only generate's arguments; it asks with
          "lookup:" and their base64 JSON, and gets the run they started. */
       if (request_id.startsWith("lookup:")) return lookupRun(request_id.slice(7));
-      /* Temporary: the tile's button diagnostics, written and read back. */
-      if (request_id.startsWith("viewerlog:")) {
-        await writeViewerLog(request_id.slice(10));
-        return { content: [{ type: "text" as const, text: "ok" }] };
-      }
-      if (request_id === "viewerlog-read") return { content: [{ type: "text" as const, text: await readViewerLog() }] };
       const first = await client.status(request_id);
       const status = wait ? await waitFor(client, request_id, Date.now() + WAIT_MS, first) : first;
       return report(request_id, status, "", false, origin);
