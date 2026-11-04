@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r56";
+const VIEWER_REVISION = "r57";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -92,7 +92,7 @@ export const VIEWER_HTML = `<!doctype html>
   :root.full .media { display: flex; align-items: center; justify-content: center; width: 100%; height: 100vh; max-width: none; border-radius: 0; }
   /* Grown in the chat, the frame is as tall as its content, so vh would
      not grow it: a fixed height does. */
-  :root.full.theater .media { height: 640px; }
+  :root.full.theater .media { height: 760px; }
   :root.full .media img, :root.full .media video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
   :root.full .grid .media ~ .media { display: none; }
   .shut { position: absolute; right: 10px; top: 10px; z-index: 2; display: none; }
@@ -150,28 +150,22 @@ export const VIEWER_HTML = `<!doctype html>
     Array.prototype.forEach.call(document.querySelectorAll(".pb.fs"), function (b) { setIcon(b, on ? "exit" : "full", on ? "Salir de pantalla completa" : "Pantalla completa"); });
     resize();
   }
-  /* The host's frame does not allow the video's own fullscreen, so ⛶ asks
-     the host for its full view, then the browser for fullscreen, and if
-     both say no grows the tile in the chat. Nothing opens elsewhere. */
+  /* ⛶ grows the tile in the chat itself. The host's full view, which
+     Claude desktop sometimes opened in a side panel, is no longer asked
+     for; the frame does not allow the browser's fullscreen either. */
   var theater = false;
   function setTheater(on) {
     theater = on;
     document.documentElement.classList.toggle("theater", on);
     setFull(on);
   }
-  function toggleFull(node) {
-    if (theater) return setTheater(false);
-    if (document.fullscreenElement) { document.exitFullscreen().catch(function () {}); return; }
-    request("ui/request-display-mode", { mode: full ? "inline" : "fullscreen" }, 5000)
-      .then(function (r) {
-        if (full || (r && r.mode === "fullscreen")) return setFull(!!r && r.mode === "fullscreen");
-        throw new Error("not granted");
-      })
-      .catch(function () {
-        var box = document.getElementById("app");
-        var tried = box.requestFullscreen ? box.requestFullscreen() : Promise.reject(new Error("none"));
-        tried.then(function () { setFull(true); }).catch(function () { setTheater(true); });
-      });
+  function toggleFull() {
+    /* Back from the host's own full view, if the user opened it there. */
+    if (full && !theater) {
+      request("ui/request-display-mode", { mode: "inline" }, 5000).then(function () { setFull(false); }).catch(function () { setFull(false); });
+      return;
+    }
+    setTheater(!theater);
   }
   document.addEventListener("fullscreenchange", function () { if (!document.fullscreenElement && full && !theater) setFull(false); });
   function resize() { notify("ui/notifications/size-changed", { height: Math.ceil(document.documentElement.getBoundingClientRect().height) }); }
