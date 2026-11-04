@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r58";
+const VIEWER_REVISION = "r59";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -92,7 +92,7 @@ export const VIEWER_HTML = `<!doctype html>
   :root.full .media { display: flex; align-items: center; justify-content: center; width: 100%; height: 100vh; max-width: none; border-radius: 0; }
   /* Grown in the chat, the frame is as tall as its content, so vh would
      not grow it: a fixed height does. */
-  :root.full.theater .media { height: 760px; }
+  :root.full.theater .media { height: 560px; }
   :root.full .media img, :root.full .media video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
   :root.full .grid .media ~ .media { display: none; }
   /* .ico sets a display of its own, so these name it too to win. */
@@ -273,34 +273,61 @@ export const VIEWER_HTML = `<!doctype html>
     wrap.appendChild(node);
     return wrap;
   }
+  /* Buttons act on press, not on the click that follows. In Claude
+     desktop the first click into a tile could be spent focusing its frame,
+     so a button took several clicks. The click that follows a press is
+     skipped; a click with no press before it (Enter, Space) still acts. */
+  function press(node, action) {
+    var pressed = 0;
+    node.addEventListener("pointerdown", function (event) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      pressed = Date.now();
+      action.call(node, event);
+    });
+    node.addEventListener("click", function (event) {
+      event.stopPropagation();
+      if (Date.now() - pressed < 800) return;
+      action.call(node, event);
+    });
+    return node;
+  }
   function button(cls, text, title, onclick) {
     var b = el("button", "btn " + cls, text);
     if (title) { b.title = title; b.setAttribute("aria-label", title); }
-    b.onclick = onclick;
-    return b;
+    return press(b, onclick);
   }
   function icon(cls, text, title, onclick) {
     var b = el("button", "ico " + cls, text);
     b.title = title; b.setAttribute("aria-label", title);
-    b.onclick = onclick;
-    return b;
+    return press(b, onclick);
   }
   /* Animar and Editar hand the next step to Claude, as a message in the
      chat, so it can ask for the model or the change before anything is
      spent. A host without ui/message gets the text to send instead. */
   var said = "";
+  /* A host may take its time, or never answer, once the text is in the
+     chat: only an outright refusal gets the short note. */
   function ask(text) {
-    request("ui/message", { role: "user", content: [{ type: "text", text: text }] }, 5000)
-      .then(function (r) { if (r && r.isError) throw new Error("denied"); said = ""; })
+    said = "";
+    request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
+      .then(function (r) { if (r && r.isError) throw new Error("denied"); })
       .catch(function () { said = "Escríbele a Claude: «" + text + "»"; if (payload) render(payload); });
+  }
+  /* Claude has the image in the chat already, so the message names it by
+     its prompt rather than by a long link. */
+  function which() {
+    var prompt = (payload && payload.prompt) || "";
+    return prompt ? "la imagen «" + (prompt.length > 60 ? prompt.slice(0, 57) + "…" : prompt) + "»" : "esta imagen";
   }
   function imageActions(img, url) {
     var over = el("div", "over");
     over.appendChild(icon("primary", "\u25B6 Animar", "Convertir esta imagen en video", function () {
-      ask("Anima esta imagen en un video con el conector API Higgsfield MCP. Pregúntame el modelo y el movimiento antes de generar: " + url);
+      ask("Anima en video " + which() + " que generaste. Pregúntame el modelo y el movimiento antes de generar.");
     }));
     over.appendChild(icon("", "\u270E", "Editar esta imagen", function () {
-      ask("Quiero editar esta imagen con el conector API Higgsfield MCP. Pregúntame qué cambiar antes de generar: " + url);
+      ask("Quiero editar " + which() + " que generaste. Pregúntame qué cambiar antes de generar.");
     }));
     over.appendChild(icon("", "\u2913", "Descargar", function () { download(url); }));
     over.appendChild(icon("fs", fsLabel(), fsTitle(), function () { toggleFull(img); }));
@@ -323,7 +350,7 @@ export const VIEWER_HTML = `<!doctype html>
     var b = el("button", "pb");
     b.title = title; b.setAttribute("aria-label", title);
     b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + SVG[name] + "</svg>";
-    b.onclick = function (event) { event.stopPropagation(); onclick(b); };
+    press(b, function () { onclick(b); });
     return b;
   }
   function setIcon(b, name, title) {
@@ -356,7 +383,7 @@ export const VIEWER_HTML = `<!doctype html>
       if (iconName) b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + SVG[iconName] + "</svg>";
       b.appendChild(el("span", "", text));
       if (extra) b.appendChild(extra);
-      b.onclick = function (event) { event.stopPropagation(); onclick(); };
+      press(b, function () { onclick(); });
       return b;
     }
     function openMenu(page) {
@@ -407,7 +434,7 @@ export const VIEWER_HTML = `<!doctype html>
       app.appendChild(text);
       if (p.prompt.length > 160) {
         var more = el("button", "more", promptOpen ? "Ver menos" : "Ver más");
-        more.onclick = function () { promptOpen = !promptOpen; render(payload); };
+        press(more, function () { promptOpen = !promptOpen; render(payload); });
         app.appendChild(more);
       }
     }
