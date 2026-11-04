@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r63";
+const VIEWER_REVISION = "r64";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -152,6 +152,7 @@ export const VIEWER_HTML = `<!doctype html>
     diag = [];
     request("tools/call", { name: "check_generation", arguments: { request_id: "viewerlog:" + text, wait: false } }, 20000).catch(function () {});
   }
+  d("loaded");
   window.addEventListener("focus", function () { d("win focus"); });
   window.addEventListener("blur", function () { d("win blur"); });
 
