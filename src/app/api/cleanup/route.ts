@@ -1,7 +1,8 @@
 import { del, list } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
-import { MCP_UPLOAD_PREFIX, MCP_UPLOAD_RETENTION_MS, UPLOAD_RETENTION_MS } from "@/generation/retention";
+import { MCP_UPLOAD_PREFIX, MCP_UPLOAD_RETENTION_MS, RUN_INDEX_RETENTION_MS, UPLOAD_RETENTION_MS } from "@/generation/retention";
+import { RUN_INDEX_PREFIX } from "@/generation/run-index";
 
 /* Run daily by Vercel Cron (vercel.json). Vercel sends CRON_SECRET as a bearer
    token and nothing else gets in; without it set the route refuses everyone,
@@ -17,7 +18,12 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const now = Date.now();
   const cutoffOf = (pathname: string) =>
-    now - (pathname.startsWith(MCP_UPLOAD_PREFIX) ? MCP_UPLOAD_RETENTION_MS : UPLOAD_RETENTION_MS);
+    now -
+    (pathname.startsWith(MCP_UPLOAD_PREFIX)
+      ? MCP_UPLOAD_RETENTION_MS
+      : pathname.startsWith(RUN_INDEX_PREFIX)
+        ? RUN_INDEX_RETENTION_MS
+        : UPLOAD_RETENTION_MS);
   let cursor: string | undefined;
   let scanned = 0;
   let deleted = 0;

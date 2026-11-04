@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r54";
+const VIEWER_REVISION = "r55";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -496,7 +496,12 @@ export const VIEWER_HTML = `<!doctype html>
     timer = setTimeout(function () {
       timer = null;
       request("tools/call", { name: "check_generation", arguments: { request_id: payload.requestId, wait: false } }, 20000)
-        .then(function (result) { misses = 0; take(result); })
+        .then(function (result) {
+          /* A failed check (a lookup with no note, say) counts as a miss
+             rather than replaying the same lookup for an hour. */
+          if (!result || result.isError) throw new Error("check failed");
+          misses = 0; take(result);
+        })
         .catch(function () {
           if (++misses >= 3) stop("Este recuadro no puede actualizarse solo aquí. " + ASK_CLAUDE);
           else schedule();
@@ -535,9 +540,19 @@ export const VIEWER_HTML = `<!doctype html>
     var label = /^(.+?) · approx\\. cost/.exec(text);
     return { requestId: id[1], status: "unknown", heading: label ? label[1] : "", images: [], video: null, error: null };
   }
+  /* Claude desktop restores a reopened chat's tile with generate's
+     arguments but no usable result: the tile asks for the run those
+     arguments started ("lookup:" plus their base64 JSON). */
+  var toolArgs = null;
+  function fromArgs() {
+    if (!toolArgs || typeof toolArgs !== "object") return null;
+    var json = JSON.stringify(toolArgs);
+    var encoded = btoa(unescape(encodeURIComponent(json)));
+    return { requestId: "lookup:" + encoded, status: "unknown", heading: "", images: [], video: null, error: null, prompt: typeof toolArgs.prompt === "string" ? toolArgs.prompt : "" };
+  }
   function take(result) {
     var p = result && result.structuredContent;
-    if (!p || typeof p !== "object" || !("status" in p)) p = fromText(result);
+    if (!p || typeof p !== "object" || !("status" in p)) p = fromText(result) || fromArgs();
     if (!p) return;
     /* A check carries only the status and the media; the rest stays. */
     if (payload) {
@@ -555,6 +570,7 @@ export const VIEWER_HTML = `<!doctype html>
   window.addEventListener("message", function (event) {
     var m = event.data;
     if (!m || m.jsonrpc !== "2.0") return;
+    if (m.method === "ui/notifications/tool-input" && m.params && m.params.arguments) toolArgs = m.params.arguments;
     if (m.method) heard.push(m.method.replace("ui/notifications/", "") + (m.method === "ui/notifications/tool-result" ? "[" + Object.keys(m.params || {}).join(",") + "]" : ""));
     if (m.id !== undefined && pending[m.id] && (m.result !== undefined || m.error !== undefined)) {
       var h = pending[m.id]; delete pending[m.id];
