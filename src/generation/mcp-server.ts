@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole, type ModelEntry } from "./catalog";
 import { encodeTraits, selectionFor } from "./influencer";
+import { downloadLink } from "./download-link";
 import { keyWorks } from "./key-check";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { storeDataUri } from "./mcp-media";
@@ -37,7 +38,7 @@ const mediaRef = z
 const VIEWER_META = { ui: { resourceUri: VIEWER_URI }, "ui/resourceUri": VIEWER_URI };
 const NOTHING_SPENT = "No se envió nada a Higgsfield (no se gastó saldo).";
 
-export function createStudioMcpServer(client: Client, apiKey: string): McpServer {
+export function createStudioMcpServer(client: Client, apiKey: string, origin = ""): McpServer {
   const server = new McpServer({ name: "open-higgsfield", version: "1.0.0" });
 
   /* generate and show_result show their result in this viewer, inline in the
@@ -283,7 +284,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       /* The run is paid for from here on, so nothing may keep its request id
          from reaching Claude. */
       const status = await waitFor(client, queued.requestId, deadline, null);
-      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, true, model.label, {
+      return report(queued.requestId, status, `${model.label} · approx. cost ${costText}${fitted}`, true, origin, model.label, {
         prompt: prompt.trim(),
         chips: chipsFor(model.label, sent),
         aspect: typeof sent.aspectRatio === "string" ? sent.aspectRatio : undefined,
@@ -319,7 +320,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
     async ({ request_id, wait }) => {
       const first = await client.status(request_id);
       const status = wait ? await waitFor(client, request_id, Date.now() + WAIT_MS, first) : first;
-      return report(request_id, status, "", false);
+      return report(request_id, status, "", false, origin);
     },
   );
 
@@ -333,7 +334,7 @@ export function createStudioMcpServer(client: Client, apiKey: string): McpServer
       inputSchema: { request_id: z.string().min(1) },
       annotations: { readOnlyHint: true },
     },
-    async ({ request_id }) => report(request_id, await client.status(request_id), "", true),
+    async ({ request_id }) => report(request_id, await client.status(request_id), "", true, origin),
   );
 
   server.registerTool(
@@ -449,6 +450,7 @@ async function report(
   status: GenerationStatus | null,
   heading: string,
   shown: boolean,
+  origin: string,
   title = "",
   extras: ViewerExtras = {},
 ) {
@@ -487,7 +489,23 @@ async function report(
     error = typeof status?.error === "string" ? status.error : JSON.stringify(status?.error ?? state);
     lines.push(`Not delivered: ${error}`);
   }
-  const structuredContent: ViewerPayload = { requestId, status: state, heading: title, images, video, error, ...extras };
+  /* Signed links the viewer's Descargar opens where the host keeps it from
+     saving files itself. */
+  const downloads: Record<string, string> = {};
+  for (const url of [...images, ...(video ? [video] : [])]) {
+    const link = origin ? downloadLink(origin, url) : null;
+    if (link) downloads[url] = link;
+  }
+  const structuredContent: ViewerPayload = {
+    requestId,
+    status: state,
+    heading: title,
+    images,
+    video,
+    error,
+    ...extras,
+    ...(Object.keys(downloads).length ? { downloads } : {}),
+  };
   return { content: [{ type: "text" as const, text: lines.join("\n") }, ...content], structuredContent };
 }
 
