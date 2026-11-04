@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r64";
+const VIEWER_REVISION = "r65";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -151,8 +151,11 @@ export const VIEWER_HTML = `<!doctype html>
     var text = "${VIEWER_REVISION} " + navigator.userAgent.slice(-60) + "\\n" + diag.join("\\n");
     diag = [];
     request("tools/call", { name: "check_generation", arguments: { request_id: "viewerlog:" + text, wait: false } }, 20000).catch(function () {});
+    if (window.__ohfOrigin) {
+      try { fetch(window.__ohfOrigin + "/api/viewer-log", { method: "POST", body: "fetch " + text }).catch(function () {}); } catch (e) {}
+    }
   }
-  d("loaded");
+  d("loaded " + (window.__ohfViewer ? "remote" : "inline"));
   window.addEventListener("focus", function () { d("win focus"); });
   window.addEventListener("blur", function () { d("win blur"); });
 
@@ -680,3 +683,19 @@ export const VIEWER_URI = `ui://open-higgsfield/result-${hashOf(VIEWER_HTML)}.ht
 /** The URI before it was versioned. Tool lists a host still holds point
     here, so it serves the current viewer too. */
 export const LEGACY_VIEWER_URI = "ui://open-higgsfield/result.html";
+
+/** The viewer's script on its own, served by /api/viewer-script. It marks
+    itself as loaded so the page's inline copy stands down. */
+export const VIEWER_SCRIPT = "window.__ohfViewer = true;\n" + (VIEWER_HTML.match(/<script>([\s\S]*)<\/script>/)?.[1] ?? "");
+
+/* Claude desktop keeps a viewer page it has read, by address, for good. A
+   page that loads its script from this deployment runs the current code
+   even when the host shows a page it kept; the inline copy runs only if
+   that script cannot load. */
+export function viewerPage(origin: string): string {
+  if (!origin) return VIEWER_HTML;
+  return VIEWER_HTML.replace(
+    "<script>",
+    `<script>window.__ohfOrigin = ${JSON.stringify(origin)};</script>\n<script src="${origin}/api/viewer-script"></script>\n<script>if (!window.__ohfViewer) `,
+  );
+}

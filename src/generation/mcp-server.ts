@@ -9,7 +9,7 @@ import { findRun, readViewerLog, rememberRun, writeViewerLog, type RunArgs } fro
 import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { storeDataUri } from "./mcp-media";
 import { MCP_UPLOAD_HOURS, createUploadTicket } from "./mcp-upload";
-import { LEGACY_VIEWER_URI, VIEWER_HTML, VIEWER_MIME, VIEWER_URI, viewerResourceDomains, type ViewerPayload } from "./mcp-viewer";
+import { LEGACY_VIEWER_URI, VIEWER_MIME, VIEWER_URI, viewerPage, viewerResourceDomains, type ViewerPayload } from "./mcp-viewer";
 import { PlatformError, createPlatformClient, type GenerationStatus } from "./platform";
 import { presetId } from "./presets";
 import { estimateCost, formatCost, pricedFromSource, scaleCost } from "./pricing";
@@ -51,9 +51,10 @@ export function createStudioMcpServer(client: Client, apiKey: string, origin = "
       {
         uri,
         mimeType: VIEWER_MIME,
-        text: VIEWER_HTML,
-        /* connectDomains lets "Descargar" fetch the file it saves. */
-        _meta: { ui: { csp: { resourceDomains: viewerResourceDomains(), connectDomains: viewerResourceDomains() }, prefersBorder: false } },
+        text: viewerPage(origin),
+        /* connectDomains lets "Descargar" fetch the file it saves; this
+           deployment serves the viewer's script. */
+        _meta: { ui: { csp: { resourceDomains: [...viewerResourceDomains(), ...(origin ? [origin] : [])], connectDomains: [...viewerResourceDomains(), ...(origin ? [origin] : [])] }, prefersBorder: false } },
       },
     ],
   });
