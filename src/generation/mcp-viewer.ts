@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r65";
+const VIEWER_REVISION = "r66";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -144,7 +144,7 @@ export const VIEWER_HTML = `<!doctype html>
   function d(what) {
     diag.push(Math.round(Date.now() - diagT0) + " " + what);
     if (diagTimer) clearTimeout(diagTimer);
-    diagTimer = setTimeout(flushDiag, 9000);
+    diagTimer = setTimeout(flushDiag, 1500);
   }
   function flushDiag() {
     if (!diag.length) return;
@@ -152,11 +152,17 @@ export const VIEWER_HTML = `<!doctype html>
     diag = [];
     request("tools/call", { name: "check_generation", arguments: { request_id: "viewerlog:" + text, wait: false } }, 20000).catch(function () {});
     if (window.__ohfOrigin) {
-      try { fetch(window.__ohfOrigin + "/api/viewer-log", { method: "POST", body: "fetch " + text }).catch(function () {}); } catch (e) {}
+      try { fetch(window.__ohfOrigin + "/api/viewer-log", { method: "POST", body: "fetch " + text, keepalive: true }).catch(function () {}); } catch (e) {}
     }
   }
   d("loaded " + (window.__ohfViewer ? "remote" : "inline"));
   window.addEventListener("focus", function () { d("win focus"); });
+  document.addEventListener("visibilitychange", function () { d("visibility " + document.visibilityState); if (document.visibilityState === "hidden") flushDiag(); });
+  window.addEventListener("pagehide", function () { d("pagehide"); flushDiag(); });
+  window.addEventListener("pageshow", function () { d("pageshow"); });
+  document.addEventListener("freeze", function () { d("freeze"); flushDiag(); });
+  document.addEventListener("resume", function () { d("resume"); });
+  document.addEventListener("pointerdown", function (e) { d("doc down on " + (e.target && (e.target.tagName + "." + e.target.className))); }, true);
   window.addEventListener("blur", function () { d("win blur"); });
 
   function applyTheme(ctx) {
