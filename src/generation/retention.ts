@@ -8,6 +8,10 @@ export const UPLOAD_RETENTION_MS = 48 * 60 * 60 * 1000;
 export const MCP_UPLOAD_PREFIX = "mcp/";
 export const MCP_UPLOAD_RETENTION_MS = 24 * 60 * 60 * 1000;
 
+/** The run notes reopened chats look up (run-index.ts) are tiny and kept
+    longer, so a chat reopened weeks later still finds its result. */
+export const RUN_INDEX_RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
+
 /** Uploads live on the Blob store's own host; generated results do not. */
 export function isBlobUrl(url: string): boolean {
   try {

@@ -5,6 +5,7 @@ import { MODELS, getModel, parseSettings, type GenerationPlane, type MediaRole, 
 import { encodeTraits, selectionFor } from "./influencer";
 import { downloadLink } from "./download-link";
 import { keyWorks } from "./key-check";
+import { findRun, rememberRun, type RunArgs } from "./run-index";
 import { checkMediaUrl, directMediaUrl } from "./media-links";
 import { storeDataUri } from "./mcp-media";
 import { MCP_UPLOAD_HOURS, createUploadTicket } from "./mcp-upload";
@@ -265,6 +266,7 @@ export function createStudioMcpServer(client: Client, apiKey: string, origin = "
       const plane: GenerationPlane = { model: model.id, prompt: { text: prompt.trim() }, media: items, settings: parsed };
       const { path, body } = toPlatform(plane);
       const queued = await client.submit(path, body);
+      await rememberRun({ model: modelId, prompt, settings, media }, queued.requestId);
       /* What is attached can fit the duration to the endpoint; the cost and the
          reply follow the length sent. */
       const sent = effectiveSettings(plane);
@@ -318,11 +320,37 @@ export function createStudioMcpServer(client: Client, apiKey: string, origin = "
       annotations: { readOnlyHint: true },
     },
     async ({ request_id, wait }) => {
+      /* A restored tile knows only generate's arguments; it asks with
+         "lookup:" and their base64 JSON, and gets the run they started. */
+      if (request_id.startsWith("lookup:")) return lookupRun(request_id.slice(7));
       const first = await client.status(request_id);
       const status = wait ? await waitFor(client, request_id, Date.now() + WAIT_MS, first) : first;
       return report(request_id, status, "", false, origin);
     },
   );
+
+  async function lookupRun(encoded: string) {
+    let args: RunArgs;
+    try {
+      args = JSON.parse(Buffer.from(encoded, "base64").toString("utf8")) as RunArgs;
+    } catch {
+      throw new Error("lookup no válido.");
+    }
+    const requestId = await findRun(args);
+    if (!requestId) throw new Error("No encontré la generación de este recuadro.");
+    const model = typeof args.model === "string" ? MODELS.find((entry) => entry.id === args.model) : undefined;
+    const parsed = model ? parseSettings(model, (args.settings as Record<string, unknown>) ?? {}) : {};
+    const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+    const inline = JSON.stringify(args.media ?? {}).includes("data:");
+    return report(requestId, await client.status(requestId), "", true, origin, model?.label ?? "", {
+      prompt,
+      chips: model ? chipsFor(model.label, parsed) : undefined,
+      aspect: typeof parsed.aspectRatio === "string" ? parsed.aspectRatio : undefined,
+      rerun: model && !inline
+        ? { model: model.id, prompt, settings: (args.settings as Record<string, unknown>) ?? {}, media: (args.media as Record<string, string | string[]>) ?? {} }
+        : undefined,
+    });
+  }
 
   server.registerTool(
     "show_result",
