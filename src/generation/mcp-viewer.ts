@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r57";
+const VIEWER_REVISION = "r58";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -95,8 +95,9 @@ export const VIEWER_HTML = `<!doctype html>
   :root.full.theater .media { height: 760px; }
   :root.full .media img, :root.full .media video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
   :root.full .grid .media ~ .media { display: none; }
-  .shut { position: absolute; right: 10px; top: 10px; z-index: 2; display: none; }
-  :root.full .shut { display: inline-flex; }
+  /* .ico sets a display of its own, so these name it too to win. */
+  .ico.shut { position: absolute; right: 10px; top: 10px; z-index: 2; display: none; }
+  :root.full .ico.shut { display: inline-flex; }
   .ico { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 30px; height: 30px; padding: 0 9px; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(0, 0, 0, 0.55); color: #fff; backdrop-filter: blur(6px); }
   .ico.primary { background: #d2f34c; color: #111; }
   .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
