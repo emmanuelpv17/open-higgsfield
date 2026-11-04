@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r59";
+const VIEWER_REVISION = "r60";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -307,13 +307,11 @@ export const VIEWER_HTML = `<!doctype html>
      chat, so it can ask for the model or the change before anything is
      spent. A host without ui/message gets the text to send instead. */
   var said = "";
-  /* A host may take its time, or never answer, once the text is in the
-     chat: only an outright refusal gets the short note. */
+  /* Puts the text in the user's message box. Claude desktop answers only
+     once the user sends it, and refuses a second one meanwhile; neither
+     calls for a note under the tile. */
   function ask(text) {
-    said = "";
-    request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
-      .then(function (r) { if (r && r.isError) throw new Error("denied"); })
-      .catch(function () { said = "Escríbele a Claude: «" + text + "»"; if (payload) render(payload); });
+    request("ui/message", { role: "user", content: [{ type: "text", text: text }] }).catch(function () {});
   }
   /* Claude has the image in the chat already, so the message names it by
      its prompt rather than by a long link. */
