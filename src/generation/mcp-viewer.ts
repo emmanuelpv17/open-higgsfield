@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r66";
+const VIEWER_REVISION = "r67";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -323,6 +323,29 @@ export const VIEWER_HTML = `<!doctype html>
     });
     return node;
   }
+  /* Animar, Editar and Descargar ask the host for something, and Claude
+     desktop grants it only after it has seen the person's click on the
+     tile: sent on press, ahead of that click, the request is refused with
+     "The host takes a message only right after the person…", and only the
+     next press, riding on the earlier click, went through. These act on
+     the click itself, a moment after it. */
+  function onClickOnly(node, action) {
+    node.addEventListener("pointerdown", function (event) {
+      d("down " + (node.title || node.textContent) + " btn" + event.button + " " + event.pointerType + " focus=" + document.hasFocus());
+      event.stopPropagation();
+    });
+    node.addEventListener("click", function (event) {
+      d("click " + (node.title || node.textContent));
+      event.stopPropagation();
+      setTimeout(function () { action.call(node, event); }, 30);
+    });
+    return node;
+  }
+  function hostIcon(cls, text, title, onclick) {
+    var b = el("button", "ico " + cls, text);
+    b.title = title; b.setAttribute("aria-label", title);
+    return onClickOnly(b, onclick);
+  }
   function button(cls, text, title, onclick) {
     var b = el("button", "btn " + cls, text);
     if (title) { b.title = title; b.setAttribute("aria-label", title); }
@@ -346,7 +369,7 @@ export const VIEWER_HTML = `<!doctype html>
   function ask(text, node) {
     /* Only a double tap is dropped: a host that ignored a tap must not
        leave the next one waiting. */
-    if (Date.now() - lastAt < 800) { d("ask dropped: double tap"); return; }
+    if (Date.now() - lastAt < 500) { d("ask dropped: double tap"); return; }
     lastAt = Date.now();
     asked[nextId] = Date.now(); d("ui/message#" + nextId + " sent");
     if (node) { node.classList.add("busy"); setTimeout(function () { node.classList.remove("busy"); }, 600); }
@@ -360,13 +383,13 @@ export const VIEWER_HTML = `<!doctype html>
   }
   function imageActions(img, url) {
     var over = el("div", "over");
-    over.appendChild(icon("primary", "\u25B6 Animar", "Convertir esta imagen en video", function () {
+    over.appendChild(hostIcon("primary", "\u25B6 Animar", "Convertir esta imagen en video", function () {
       ask("Anima en video " + which() + " que generaste. Pregúntame el modelo y el movimiento antes de generar.", this);
     }));
-    over.appendChild(icon("", "\u270E", "Editar esta imagen", function () {
+    over.appendChild(hostIcon("", "\u270E", "Editar esta imagen", function () {
       ask("Quiero editar " + which() + " que generaste. Pregúntame qué cambiar antes de generar.", this);
     }));
-    over.appendChild(icon("", "\u2913", "Descargar", function () { download(url); }));
+    over.appendChild(hostIcon("", "\u2913", "Descargar", function () { download(url); }));
     over.appendChild(icon("fs", fsLabel(), fsTitle(), function () { toggleFull(img); }));
     return over;
   }
@@ -420,7 +443,7 @@ export const VIEWER_HTML = `<!doctype html>
       if (iconName) b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + SVG[iconName] + "</svg>";
       b.appendChild(el("span", "", text));
       if (extra) b.appendChild(extra);
-      press(b, function () { onclick(); });
+      onClickOnly(b, function () { onclick(); });
       return b;
     }
     function openMenu(page) {
@@ -514,7 +537,7 @@ export const VIEWER_HTML = `<!doctype html>
       });
       app.appendChild(grid);
       var acts = el("div", "acts");
-      if (video) acts.appendChild(button("primary", "\u2913 Descargar", "", function () { download(video); }));
+      if (video) acts.appendChild(onClickOnly(el("button", "btn primary", "\u2913 Descargar"), function () { download(video); }));
       if (p.rerun) acts.appendChild(button("re", "\u21BB Recrear", "Generar otra vez con lo mismo (gasta saldo)", function () { recreate(this); }));
       if (acts.childNodes.length) app.appendChild(acts);
       if (said) app.appendChild(el("div", "said", said));
@@ -639,7 +662,7 @@ export const VIEWER_HTML = `<!doctype html>
     if (!m || m.jsonrpc !== "2.0") return;
     if (m.method === "ui/notifications/tool-input" && m.params && m.params.arguments) toolArgs = m.params.arguments;
     if (m.method) heard.push(m.method.replace("ui/notifications/", "") + (m.method === "ui/notifications/tool-result" ? "[" + Object.keys(m.params || {}).join(",") + "]" : ""));
-    if (m.id !== undefined && asked[m.id]) { d("answer#" + m.id + " +" + (Date.now() - asked[m.id]) + "ms " + JSON.stringify(m.result !== undefined ? m.result : m.error).slice(0, 80)); delete asked[m.id]; }
+    if (m.id !== undefined && asked[m.id]) { d("answer#" + m.id + " +" + (Date.now() - asked[m.id]) + "ms " + JSON.stringify(m.result !== undefined ? m.result : m.error).slice(0, 400)); delete asked[m.id]; }
     if (m.id !== undefined && pending[m.id] && (m.result !== undefined || m.error !== undefined)) {
       var h = pending[m.id]; delete pending[m.id];
       if (m.error) h.reject(m.error); else h.resolve(m.result);
