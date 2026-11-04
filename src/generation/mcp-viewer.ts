@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r71";
+const VIEWER_REVISION = "r72";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -141,32 +141,6 @@ export const VIEWER_HTML = `<!doctype html>
     });
   }
   function notify(method, params) { send({ jsonrpc: "2.0", method: method, params: params || {} }); }
-  /* Temporary diagnostics: timings of taps and of the host's answers,
-     sent back through the connector a few seconds after the last tap. */
-  var diag = [], diagT0 = Date.now(), diagTimer = null;
-  function d(what) {
-    diag.push(Math.round(Date.now() - diagT0) + " " + what);
-    if (diagTimer) clearTimeout(diagTimer);
-    diagTimer = setTimeout(flushDiag, 1500);
-  }
-  function flushDiag() {
-    if (!diag.length) return;
-    var text = "${VIEWER_REVISION} " + navigator.userAgent.slice(-60) + "\\n" + diag.join("\\n");
-    diag = [];
-    request("tools/call", { name: "check_generation", arguments: { request_id: "viewerlog:" + text, wait: false } }, 20000).catch(function () {});
-    if (window.__ohfOrigin) {
-      try { fetch(window.__ohfOrigin + "/api/viewer-log", { method: "POST", body: "fetch " + text, keepalive: true }).catch(function () {}); } catch (e) {}
-    }
-  }
-  d("loaded " + (window.__ohfViewer ? "remote" : "inline"));
-  window.addEventListener("focus", function () { d("win focus"); });
-  document.addEventListener("visibilitychange", function () { d("visibility " + document.visibilityState); if (document.visibilityState === "hidden") flushDiag(); });
-  window.addEventListener("pagehide", function () { d("pagehide"); flushDiag(); });
-  window.addEventListener("pageshow", function () { d("pageshow"); });
-  document.addEventListener("freeze", function () { d("freeze"); flushDiag(); });
-  document.addEventListener("resume", function () { d("resume"); });
-  document.addEventListener("pointerdown", function (e) { d("doc down on " + (e.target && (e.target.tagName + "." + e.target.className))); }, true);
-  window.addEventListener("blur", function () { d("win blur"); });
 
   function applyTheme(ctx) {
     if (ctx && (ctx.theme === "dark" || ctx.theme === "light")) document.documentElement.setAttribute("data-theme", ctx.theme);
@@ -311,7 +285,6 @@ export const VIEWER_HTML = `<!doctype html>
   function press(node, action) {
     var pressed = 0;
     node.addEventListener("pointerdown", function (event) {
-      d("down " + (node.title || node.textContent) + " btn" + event.button + " " + event.pointerType + " focus=" + document.hasFocus());
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
@@ -319,7 +292,6 @@ export const VIEWER_HTML = `<!doctype html>
       action.call(node, event);
     });
     node.addEventListener("click", function (event) {
-      d("click " + (node.title || node.textContent) + " +" + (Date.now() - pressed) + "ms");
       event.stopPropagation();
       if (Date.now() - pressed < 800) return;
       action.call(node, event);
@@ -334,11 +306,9 @@ export const VIEWER_HTML = `<!doctype html>
      the click itself, a moment after it. */
   function onClickOnly(node, action) {
     node.addEventListener("pointerdown", function (event) {
-      d("down " + (node.title || node.textContent) + " btn" + event.button + " " + event.pointerType + " focus=" + document.hasFocus());
       event.stopPropagation();
     });
     node.addEventListener("click", function (event) {
-      d("click " + (node.title || node.textContent));
       event.stopPropagation();
       setTimeout(function () { action.call(node, event); }, 30);
     });
@@ -368,16 +338,14 @@ export const VIEWER_HTML = `<!doctype html>
      answers, so nothing is ever sent again on its own: a retry would paste
      the text twice. */
   var lastAt = 0;
-  var asked = {};
   /* Claude desktop refuses the text for about five seconds after any other
      input on the page (typing, deleting, a click elsewhere), and asks for
      a new press in the tile afterwards. A refused button counts those
      seconds down in place of its label, then glows: the next tap goes
      through. */
   function ask(text, node) {
-    if (Date.now() - lastAt < 500) { d("ask dropped: double tap"); return; }
+    if (Date.now() - lastAt < 500) return;
     lastAt = Date.now();
-    asked[nextId] = Date.now(); d("ui/message#" + nextId + " sent");
     if (node) { node.classList.add("busy"); setTimeout(function () { node.classList.remove("busy"); }, 600); }
     request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
       .then(function (r) { if (r && r.isError && node) countdown(node); }, function () {});
@@ -690,7 +658,6 @@ export const VIEWER_HTML = `<!doctype html>
     if (!m || m.jsonrpc !== "2.0") return;
     if (m.method === "ui/notifications/tool-input" && m.params && m.params.arguments) toolArgs = m.params.arguments;
     if (m.method) heard.push(m.method.replace("ui/notifications/", "") + (m.method === "ui/notifications/tool-result" ? "[" + Object.keys(m.params || {}).join(",") + "]" : ""));
-    if (m.id !== undefined && asked[m.id]) { d("answer#" + m.id + " +" + (Date.now() - asked[m.id]) + "ms " + JSON.stringify(m.result !== undefined ? m.result : m.error).slice(0, 400)); delete asked[m.id]; }
     if (m.id !== undefined && pending[m.id] && (m.result !== undefined || m.error !== undefined)) {
       var h = pending[m.id]; delete pending[m.id];
       if (m.error) h.reject(m.error); else h.resolve(m.result);

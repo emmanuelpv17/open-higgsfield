@@ -68,28 +68,3 @@ export async function findRun(args: RunArgs): Promise<string | null> {
   }
 }
 
-/* Temporary diagnostics: the result tile reports how the host answers its
-   buttons (timings only, no prompts), so a host's quirks can be read back
-   instead of guessed. Kept under runs/, so the cleanup job removes them. */
-const VIEWER_LOG_PREFIX = `${RUN_INDEX_PREFIX}viewer-log/`;
-
-export async function writeViewerLog(text: string): Promise<void> {
-  const blob = store();
-  if (!blob) return;
-  await put(`${VIEWER_LOG_PREFIX}${Date.now()}.txt`, text.slice(0, 4000), {
-    access: "public",
-    token: blob.token,
-    contentType: "text/plain",
-    addRandomSuffix: true,
-  });
-}
-
-export async function readViewerLog(): Promise<string> {
-  const blob = store();
-  if (!blob) return "sin almacenamiento";
-  const { list } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: VIEWER_LOG_PREFIX, token: blob.token, limit: 1000 });
-  const latest = blobs.sort((a, b) => (a.pathname < b.pathname ? 1 : -1)).slice(0, 15);
-  const texts = await Promise.all(latest.map((b) => fetch(b.url, { cache: "no-store" }).then((r) => r.text()).catch(() => "?")));
-  return texts.map((t, i) => `${latest[i]!.pathname}\n${t}`).join("\n\n") || "vacío";
-}
