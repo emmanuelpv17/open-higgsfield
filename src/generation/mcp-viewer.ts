@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r67";
+const VIEWER_REVISION = "r68";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -102,6 +102,9 @@ export const VIEWER_HTML = `<!doctype html>
   .ico.primary { background: #d2f34c; color: #111; }
   .ico:active { transform: scale(0.94); }
   .ico.busy { box-shadow: 0 0 0 2px #d2f34c; }
+  .ico.wait { opacity: 0.7; }
+  .ico.ready { box-shadow: 0 0 0 2px #d2f34c; animation: ready 0.8s ease-in-out infinite alternate; }
+  @keyframes ready { from { box-shadow: 0 0 0 2px #d2f34c; } to { box-shadow: 0 0 0 4px rgba(210, 243, 76, 0.4); } }
   .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
   /* A fixed cap, not vh: inline, vh is the frame's own height, which starts
      small and would keep a vertical video a sliver. Fullscreen fills the view. */
@@ -366,14 +369,33 @@ export const VIEWER_HTML = `<!doctype html>
      the text twice. */
   var lastAt = 0;
   var asked = {};
+  /* Claude desktop refuses the text for about five seconds after any other
+     input on the page (typing, deleting, a click elsewhere), and asks for
+     a new press in the tile afterwards. A refused button counts those
+     seconds down, then glows: the next tap goes through. */
   function ask(text, node) {
-    /* Only a double tap is dropped: a host that ignored a tap must not
-       leave the next one waiting. */
     if (Date.now() - lastAt < 500) { d("ask dropped: double tap"); return; }
     lastAt = Date.now();
     asked[nextId] = Date.now(); d("ui/message#" + nextId + " sent");
     if (node) { node.classList.add("busy"); setTimeout(function () { node.classList.remove("busy"); }, 600); }
-    request("ui/message", { role: "user", content: [{ type: "text", text: text }] }).catch(function () {});
+    request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
+      .then(function (r) { if (r && r.isError && node) countdown(node); }, function () {});
+  }
+  function countdown(node) {
+    if (node.__label === undefined) node.__label = node.textContent;
+    if (node.__tick) clearInterval(node.__tick);
+    var left = 5;
+    node.classList.add("wait");
+    node.textContent = node.__label + " \u00B7 " + left;
+    node.__tick = setInterval(function () {
+      left -= 1;
+      if (left > 0) { node.textContent = node.__label + " \u00B7 " + left; return; }
+      clearInterval(node.__tick); node.__tick = null;
+      node.textContent = node.__label;
+      node.classList.remove("wait");
+      node.classList.add("ready");
+      setTimeout(function () { node.classList.remove("ready"); }, 4000);
+    }, 1000);
   }
   /* Claude has the image in the chat already, so the message names it by
      its prompt rather than by a long link. */
