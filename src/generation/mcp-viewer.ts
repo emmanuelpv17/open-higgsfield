@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r55";
+const VIEWER_REVISION = "r56";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -477,7 +477,8 @@ export const VIEWER_HTML = `<!doctype html>
       app.appendChild(w);
       schedule();
     } else {
-      app.appendChild(el("div", "err", p.error || "No se entregó el resultado."));
+      /* A run the tile cannot recover is not an error of the run itself. */
+      app.appendChild(el("div", p.status === "gone" ? "wait" : "err", p.error || "No se entregó el resultado."));
     }
     resize();
   }
@@ -497,8 +498,15 @@ export const VIEWER_HTML = `<!doctype html>
       timer = null;
       request("tools/call", { name: "check_generation", arguments: { request_id: payload.requestId, wait: false } }, 20000)
         .then(function (result) {
-          /* A failed check (a lookup with no note, say) counts as a miss
-             rather than replaying the same lookup for an hour. */
+          /* A lookup with no note is a run from before notes were kept: say
+             so at once instead of showing it as rendering. */
+          if (result && result.isError && String(payload.requestId).indexOf("lookup:") === 0) {
+            payload = Object.assign({}, payload, { status: "gone", error: "Este resultado se generó antes de que el recuadro pudiera recuperarlo al reabrir el chat. Míralo o descárgalo con el enlace que Claude dejó en el chat." });
+            render(payload);
+            return;
+          }
+          /* Any other failed check counts as a miss rather than replaying
+             the same request for an hour. */
           if (!result || result.isError) throw new Error("check failed");
           misses = 0; take(result);
         })
