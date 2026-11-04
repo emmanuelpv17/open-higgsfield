@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r69";
+const VIEWER_REVISION = "r70";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -102,9 +102,10 @@ export const VIEWER_HTML = `<!doctype html>
   .ico.primary { background: #d2f34c; color: #111; }
   .ico:active { transform: scale(0.94); }
   .ico.busy { box-shadow: 0 0 0 2px #d2f34c; }
-  .ico.cool { position: relative; overflow: hidden; opacity: 0.75; }
-  .ico.cool::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: currentColor; animation: drain 5s linear forwards; }
-  @keyframes drain { from { width: 100%; } to { width: 0; } }
+  .ico.cool { position: relative; }
+  .ico.cool::after { content: ""; position: absolute; left: 4px; bottom: 2px; height: 2px; width: calc(100% - 8px); border-radius: 1px; background: currentColor; opacity: 0.8; animation: drain 5s linear forwards; }
+  .ico.cool::before { content: attr(data-left); position: absolute; top: -7px; right: -7px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: #fff; color: #111; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+  @keyframes drain { from { width: calc(100% - 8px); } to { width: 0; } }
   .ico.ready { box-shadow: 0 0 0 2px #d2f34c; animation: ready 0.8s ease-in-out infinite alternate; }
   @keyframes ready { from { box-shadow: 0 0 0 2px #d2f34c; } to { box-shadow: 0 0 0 4px rgba(210, 243, 76, 0.4); } }
   .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
@@ -385,16 +386,21 @@ export const VIEWER_HTML = `<!doctype html>
       .then(function (r) { if (r && r.isError && node) countdown(node); }, function () {});
   }
   function countdown(node) {
-    if (node.__wait) clearTimeout(node.__wait);
+    if (node.__wait) clearInterval(node.__wait);
     node.classList.remove("ready", "cool");
     void node.offsetWidth;
     node.classList.add("cool");
-    node.__wait = setTimeout(function () {
-      node.__wait = null;
+    var left = 5;
+    node.setAttribute("data-left", String(left));
+    node.__wait = setInterval(function () {
+      left -= 1;
+      if (left > 0) { node.setAttribute("data-left", String(left)); return; }
+      clearInterval(node.__wait); node.__wait = null;
+      node.removeAttribute("data-left");
       node.classList.remove("cool");
       node.classList.add("ready");
       setTimeout(function () { node.classList.remove("ready"); }, 4000);
-    }, 5000);
+    }, 1000);
   }
   /* Claude has the image in the chat already, so the message names it by
      its prompt rather than by a long link. */
