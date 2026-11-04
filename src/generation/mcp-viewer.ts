@@ -39,6 +39,10 @@ export type ViewerPayload = {
   rerun?: { model: string; prompt: string; settings: Record<string, unknown>; media: Record<string, string | string[]> };
 };
 
+/** Shown in the waiting tile's diagnostics, to tell which viewer a host
+    actually runs; bump it with each viewer change. */
+const VIEWER_REVISION = "r54";
+
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
 <head>
@@ -116,6 +120,7 @@ export const VIEWER_HTML = `<!doctype html>
 <div id="app" class="box"><div class="wait"><div class="spin"></div>Cargando…</div></div>
 <script>
 (function () {
+  var heard = [];
   var nextId = 1, pending = {}, payload = null, timer = null, started = 0, misses = 0, stopped = "", checked = false;
   var app = document.getElementById("app");
 
@@ -550,6 +555,7 @@ export const VIEWER_HTML = `<!doctype html>
   window.addEventListener("message", function (event) {
     var m = event.data;
     if (!m || m.jsonrpc !== "2.0") return;
+    if (m.method) heard.push(m.method.replace("ui/notifications/", "") + (m.method === "ui/notifications/tool-result" ? "[" + Object.keys(m.params || {}).join(",") + "]" : ""));
     if (m.id !== undefined && pending[m.id] && (m.result !== undefined || m.error !== undefined)) {
       var h = pending[m.id]; delete pending[m.id];
       if (m.error) h.reject(m.error); else h.resolve(m.result);
@@ -565,7 +571,11 @@ export const VIEWER_HTML = `<!doctype html>
   setTimeout(function () {
     if (payload) return;
     app.textContent = "";
-    app.appendChild(el("div", "wait", "Claude te mostrará el resultado aquí en el chat cuando esté listo."));
+    var wait = el("div", "wait", "Claude te mostrará el resultado aquí en el chat cuando esté listo.");
+    /* Which viewer runs and what the host sent it, for a tile that got
+       nothing to show. */
+    wait.appendChild(el("div", "note", "(recuadro ${VIEWER_REVISION} · recibido: " + (heard.length ? heard.slice(0, 6).join(", ") : "nada") + ")"));
+    app.appendChild(wait);
     resize();
   }, 20000);
 
