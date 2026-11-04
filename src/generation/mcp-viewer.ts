@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r62";
+const VIEWER_REVISION = "r63";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -138,6 +138,22 @@ export const VIEWER_HTML = `<!doctype html>
     });
   }
   function notify(method, params) { send({ jsonrpc: "2.0", method: method, params: params || {} }); }
+  /* Temporary diagnostics: timings of taps and of the host's answers,
+     sent back through the connector a few seconds after the last tap. */
+  var diag = [], diagT0 = Date.now(), diagTimer = null;
+  function d(what) {
+    diag.push(Math.round(Date.now() - diagT0) + " " + what);
+    if (diagTimer) clearTimeout(diagTimer);
+    diagTimer = setTimeout(flushDiag, 9000);
+  }
+  function flushDiag() {
+    if (!diag.length) return;
+    var text = "${VIEWER_REVISION} " + navigator.userAgent.slice(-60) + "\\n" + diag.join("\\n");
+    diag = [];
+    request("tools/call", { name: "check_generation", arguments: { request_id: "viewerlog:" + text, wait: false } }, 20000).catch(function () {});
+  }
+  window.addEventListener("focus", function () { d("win focus"); });
+  window.addEventListener("blur", function () { d("win blur"); });
 
   function applyTheme(ctx) {
     if (ctx && (ctx.theme === "dark" || ctx.theme === "light")) document.documentElement.setAttribute("data-theme", ctx.theme);
@@ -282,6 +298,7 @@ export const VIEWER_HTML = `<!doctype html>
   function press(node, action) {
     var pressed = 0;
     node.addEventListener("pointerdown", function (event) {
+      d("down " + (node.title || node.textContent) + " btn" + event.button + " " + event.pointerType + " focus=" + document.hasFocus());
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
@@ -289,6 +306,7 @@ export const VIEWER_HTML = `<!doctype html>
       action.call(node, event);
     });
     node.addEventListener("click", function (event) {
+      d("click " + (node.title || node.textContent) + " +" + (Date.now() - pressed) + "ms");
       event.stopPropagation();
       if (Date.now() - pressed < 800) return;
       action.call(node, event);
@@ -312,17 +330,17 @@ export const VIEWER_HTML = `<!doctype html>
   /* Puts the text in the user's message box, once per tap. Claude desktop
      adds each message to whatever the box already holds, whatever it
      answers, so nothing is ever sent again on its own: a retry would paste
-     the text twice. A second tap while the first is still on its way, or
-     the same text within a few seconds, is dropped for the same reason. */
-  var asking = false, lastText = "", lastAt = 0;
+     the text twice. */
+  var lastAt = 0;
+  var asked = {};
   function ask(text, node) {
-    if (asking) return;
-    if (text === lastText && Date.now() - lastAt < 4000) return;
-    asking = true; lastText = text; lastAt = Date.now();
+    /* Only a double tap is dropped: a host that ignored a tap must not
+       leave the next one waiting. */
+    if (Date.now() - lastAt < 800) { d("ask dropped: double tap"); return; }
+    lastAt = Date.now();
+    asked[nextId] = Date.now(); d("ui/message#" + nextId + " sent");
     if (node) { node.classList.add("busy"); setTimeout(function () { node.classList.remove("busy"); }, 600); }
-    request("ui/message", { role: "user", content: [{ type: "text", text: text }] }, 4000)
-      .then(function () {}, function () {})
-      .then(function () { asking = false; });
+    request("ui/message", { role: "user", content: [{ type: "text", text: text }] }).catch(function () {});
   }
   /* Claude has the image in the chat already, so the message names it by
      its prompt rather than by a long link. */
@@ -611,6 +629,7 @@ export const VIEWER_HTML = `<!doctype html>
     if (!m || m.jsonrpc !== "2.0") return;
     if (m.method === "ui/notifications/tool-input" && m.params && m.params.arguments) toolArgs = m.params.arguments;
     if (m.method) heard.push(m.method.replace("ui/notifications/", "") + (m.method === "ui/notifications/tool-result" ? "[" + Object.keys(m.params || {}).join(",") + "]" : ""));
+    if (m.id !== undefined && asked[m.id]) { d("answer#" + m.id + " +" + (Date.now() - asked[m.id]) + "ms " + JSON.stringify(m.result !== undefined ? m.result : m.error).slice(0, 80)); delete asked[m.id]; }
     if (m.id !== undefined && pending[m.id] && (m.result !== undefined || m.error !== undefined)) {
       var h = pending[m.id]; delete pending[m.id];
       if (m.error) h.reject(m.error); else h.resolve(m.result);
