@@ -31,6 +31,9 @@ export type ViewerPayload = {
   chips?: string[];
   /** "9:16" and the like, to size the waiting placeholder. */
   aspect?: string;
+  /** Signed /api/download links by result URL, for hosts that keep the
+      viewer from saving files itself. */
+  downloads?: Record<string, string>;
   /** generate's arguments for the run, with stored links instead of inline
       files, so the viewer's "Recrear" can run it again. */
   rerun?: { model: string; prompt: string; settings: Record<string, unknown>; media: Record<string, string | string[]> };
@@ -234,9 +237,13 @@ export const VIEWER_HTML = `<!doctype html>
         .then(function (r) { if (r && r.isError) throw new Error("Claude rechazó el archivo"); })
         .catch(function (error) {
           if (why.length === 0 || why[why.length - 1].indexOf("Claude") !== 0) why.push(String((error && error.message) || error).slice(0, 80));
-          request("ui/download-file", { contents: [{ type: "resource_link", uri: url, name: name, mimeType: type }] }, 15000)
-            .catch(reason("Claude (enlace)"))
-            .then(function (r) { if (r && r.isError) { why.push("Claude (enlace): rechazado"); throw new Error("denied"); } })
+          /* The app's own download link: Claude desktop opens links, and
+             this one answers with an attachment, so it shows "Save as". */
+          var link = payload && payload.downloads && payload.downloads[url];
+          (link
+            ? request("ui/open-link", { url: link + "&n=" + encodeURIComponent(name) }, 15000).catch(reason("enlace"))
+            : Promise.reject(new Error("sin enlace de descarga")))
+            .then(function (r) { if (r && r.isError) { why.push("enlace: rechazado"); throw new Error("denied"); } })
             .catch(function () {
               said = plainSave()
                 ? "Si no se abrió la ventana para guardar, este chat no deja descargar desde el recuadro (" + why.join(" · ") + ")."
@@ -521,6 +528,7 @@ export const VIEWER_HTML = `<!doctype html>
       if (!p.chips || !p.chips.length) p.chips = payload.chips;
       if (!p.aspect) p.aspect = payload.aspect;
       if (!p.rerun) p.rerun = payload.rerun;
+      if (!p.downloads) p.downloads = payload.downloads;
     }
     payload = p;
     render(p);
