@@ -518,9 +518,22 @@ export const VIEWER_HTML = `<!doctype html>
     if (payload) render(payload);
   }
 
+  /* A chat restored later may hand back only the reply's text, without
+     its structuredContent. The text still names the request, so the tile
+     can ask for the result again: it shows the run as rendering, and its
+     first check, which runs at once, brings the media back. */
+  function fromText(result) {
+    var block = result && Array.isArray(result.content) && result.content.filter(function (c) { return c && c.type === "text"; })[0];
+    var text = block && typeof block.text === "string" ? block.text : "";
+    var id = /request_id: (\\S+)/.exec(text);
+    if (!id) return null;
+    var label = /^(.+?) · approx\\. cost/.exec(text);
+    return { requestId: id[1], status: "unknown", heading: label ? label[1] : "", images: [], video: null, error: null };
+  }
   function take(result) {
     var p = result && result.structuredContent;
-    if (!p || typeof p !== "object" || !("status" in p)) return;
+    if (!p || typeof p !== "object" || !("status" in p)) p = fromText(result);
+    if (!p) return;
     /* A check carries only the status and the media; the rest stays. */
     if (payload) {
       if (!p.heading) p.heading = payload.heading;
