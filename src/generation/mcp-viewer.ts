@@ -41,7 +41,7 @@ export type ViewerPayload = {
 
 /** Shown in the waiting tile's diagnostics, to tell which viewer a host
     actually runs; bump it with each viewer change. */
-const VIEWER_REVISION = "r60";
+const VIEWER_REVISION = "r61";
 
 export const VIEWER_HTML = `<!doctype html>
 <html lang="es">
@@ -100,6 +100,9 @@ export const VIEWER_HTML = `<!doctype html>
   :root.full .ico.shut { display: inline-flex; }
   .ico { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 30px; height: 30px; padding: 0 9px; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(0, 0, 0, 0.55); color: #fff; backdrop-filter: blur(6px); }
   .ico.primary { background: #d2f34c; color: #111; }
+  .ico:active { transform: scale(0.94); }
+  .ico.busy { box-shadow: 0 0 0 2px #d2f34c; animation: glow 1s ease-in-out infinite alternate; }
+  @keyframes glow { from { opacity: 1; } to { opacity: 0.6; } }
   .said { margin-top: 6px; font-size: 12px; color: var(--muted); }
   /* A fixed cap, not vh: inline, vh is the frame's own height, which starts
      small and would keep a vertical video a sliver. Fullscreen fills the view. */
@@ -307,11 +310,35 @@ export const VIEWER_HTML = `<!doctype html>
      chat, so it can ask for the model or the change before anything is
      spent. A host without ui/message gets the text to send instead. */
   var said = "";
-  /* Puts the text in the user's message box. Claude desktop answers only
-     once the user sends it, and refuses a second one meanwhile; neither
-     calls for a note under the tile. */
-  function ask(text) {
-    request("ui/message", { role: "user", content: [{ type: "text", text: text }] }).catch(function () {});
+  /* Puts the text in the user's message box. Claude desktop refuses a new
+     one (isError) while its box still holds an earlier one, and for a few
+     seconds after the user clears it. So the latest tap keeps retrying
+     until the box takes it: tapping Editar after Animar needs only the
+     Animar text deleted, not another tap. The button glows meanwhile. */
+  var asking = null;
+  function ask(text, node) {
+    if (asking) { clearTimeout(asking.timer); if (asking.node) asking.node.classList.remove("busy"); }
+    var job = { node: node, until: Date.now() + 60000, timer: 0 };
+    asking = job;
+    if (node) node.classList.add("busy");
+    function done() { if (asking === job) { asking = null; if (node) node.classList.remove("busy"); } }
+    function attempt() {
+      if (asking !== job) return;
+      request("ui/message", { role: "user", content: [{ type: "text", text: text }] }, 10000).then(function (r) {
+        if (asking !== job) return;
+        if (r && r.isError) retry(); else done();
+      }, function (e) {
+        if (asking !== job) return;
+        /* No ui/message at all: nothing to wait for. */
+        if (e && e.code === -32601) done(); else retry();
+      });
+    }
+    function retry() {
+      if (asking !== job) return;
+      if (Date.now() > job.until) return done();
+      job.timer = setTimeout(attempt, 700);
+    }
+    attempt();
   }
   /* Claude has the image in the chat already, so the message names it by
      its prompt rather than by a long link. */
@@ -322,10 +349,10 @@ export const VIEWER_HTML = `<!doctype html>
   function imageActions(img, url) {
     var over = el("div", "over");
     over.appendChild(icon("primary", "\u25B6 Animar", "Convertir esta imagen en video", function () {
-      ask("Anima en video " + which() + " que generaste. Pregúntame el modelo y el movimiento antes de generar.");
+      ask("Anima en video " + which() + " que generaste. Pregúntame el modelo y el movimiento antes de generar.", this);
     }));
     over.appendChild(icon("", "\u270E", "Editar esta imagen", function () {
-      ask("Quiero editar " + which() + " que generaste. Pregúntame qué cambiar antes de generar.");
+      ask("Quiero editar " + which() + " que generaste. Pregúntame qué cambiar antes de generar.", this);
     }));
     over.appendChild(icon("", "\u2913", "Descargar", function () { download(url); }));
     over.appendChild(icon("fs", fsLabel(), fsTitle(), function () { toggleFull(img); }));
