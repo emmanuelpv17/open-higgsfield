@@ -25,11 +25,12 @@ import {
   kling3Std,
   kling3Turbo,
 } from "./kling-3";
-import { kling4, kling4Edit } from "./kling-4";
+import { kling4, kling4Edit, kling4Flash, kling4FlashEdit } from "./kling-4";
+import { klingImage4 } from "./kling-image-4";
 import { klingO1, klingO1Edit, klingO3, klingO3Edit } from "./kling-omni";
 import { ltx25Fast, ltx25Pro } from "./ltx-2.5";
 import { marketingStudioFlare, marketingStudioImage, marketingStudioSunburst } from "./marketing-studio";
-import { minimaxH3 } from "./minimax-h3";
+import { minimaxH3, minimaxH3Highspeed, minimaxH3Lite } from "./minimax-h3";
 import { minimaxHailuo23 } from "./minimax-hailuo-2.3";
 import { parseSettings } from "./parse-settings";
 import { pixverse6 } from "./pixverse-6";
@@ -37,6 +38,7 @@ import { qwenImage3 } from "./qwen-image-3";
 import { recraft41, recraft41Utility } from "./recraft-4.1";
 import { seedance2, seedance2Fast, seedance2Mini } from "./seedance-2";
 import { seedance25, seedance25Edit, seedance25Extend } from "./seedance-2.5";
+import { seedream5Pro } from "./seedream-5";
 import { soul2, soulCinema, soulStandard } from "./soul";
 import type { ModelEntry } from "./types";
 import { wan26, wan27, wan3, wan3Prime } from "./wan";
@@ -65,6 +67,8 @@ export const MODELS: readonly ModelEntry[] = [
   seedance2Mini,
   kling4,
   kling4Edit,
+  kling4Flash,
+  kling4FlashEdit,
   kling3Turbo,
   kling3Std,
   kling3Pro,
@@ -73,6 +77,8 @@ export const MODELS: readonly ModelEntry[] = [
   kling3MotionPro,
   kling26MotionStd,
   kling26MotionPro,
+  klingImage4,
+  seedream5Pro,
   flux2,
   grokImagine2,
   ideogram4,
@@ -86,6 +92,8 @@ export const MODELS: readonly ModelEntry[] = [
   wan26,
   flux3,
   minimaxH3,
+  minimaxH3Highspeed,
+  minimaxH3Lite,
   minimaxHailuo23,
   happyHorse1,
   happyHorse11,

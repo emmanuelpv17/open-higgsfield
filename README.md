@@ -32,9 +32,9 @@ Next.js 16 App Router on Vercel · React 19 · plain CSS · Zustand · pnpm
 
 - **One composer for Image and Video.** A single prompt bar drives both; the
   model you pick decides image or video. `⌘/Ctrl + Enter` submits.
-- **58 models in the catalog** — 15 image, 43 video: Soul 2 (with image-to-image), Soul Cinema, Soul Standard, Soul ID characters, AI Influencer, Marketing Studio (2.0 / Flare / Sunburst, with presets), Ads Studio (brief → 1–8 ad images), Cinema Studio 4.0, Genjutsu (Motion Transfer / Object Swap / Restyle) and Genjutsu Light, Seedance
-  2.5 (Edit / Extend), Seedance 2.0 (Fast / Mini), Kling 4.0 (+ Video Edit), Kling 3 (Turbo / Std / Pro / 4K / Motion), Kling O3 / O1 (+ Edit), Kling 2.5, Wan, Flux,
-  Happy Horse, Ideogram, Recraft, LTX, MiniMax, Hailuo, PixVerse, Grok, Qwen and more. Searchable
+- **64 models in the catalog** — 17 image, 47 video: Soul 2 (with image-to-image), Soul Cinema, Soul Standard, Soul ID characters, AI Influencer, Marketing Studio (2.0 / Flare / Sunburst, with presets), Ads Studio (brief → 1–8 ad images), Cinema Studio 4.0, Genjutsu (Motion Transfer / Object Swap / Restyle) and Genjutsu Light, Seedance
+  2.5 (Edit / Extend), Seedance 2.0 (Fast / Mini), Kling 4.0 and 4.0 Flash (+ Video Edit), Kling Image 4.0 (with 2–10 image series), Seedream 5.0 Pro, Kling 3 (Turbo / Std / Pro / 4K / Motion), Kling O3 / O1 (+ Edit), Kling 2.5, Wan, Flux,
+  Happy Horse, Ideogram, Recraft, LTX, MiniMax H3 (Highspeed / Lite), Hailuo, PixVerse, Grok, Qwen and more. Searchable
   picker.
 - **Per-model settings.** Aspect ratio, resolution, duration, output format,
   audio, batch size, prompt enhancement — each model declares its own allow-list

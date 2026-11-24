@@ -249,6 +249,8 @@ const PRICING: Record<string, Pricer> = {
       ),
   },
   "kling-4-edit": kling4WithVideo,
+  "kling-4-flash": perSecond(() => 0.094),
+  "kling-4-flash-edit": perSecond(() => 0.063),
   "kling-o3": klingOmni({ std: 0.084, pro: 0.112, "4k": 0.42 }, false),
   "kling-o1": klingOmni({ std: 0.084, pro: 0.112 }, true),
   "kling-o3-edit": perSourceSecond(() => 0.126),
@@ -260,6 +262,10 @@ const PRICING: Record<string, Pricer> = {
   "happy-horse-1": perSecond(byResolution({ "720p": 0.14, "1080p": 0.28 })),
   "happy-horse-1.1": perSecond(byResolution({ "720p": 0.14, "1080p": 0.18 })),
   "minimax-h3": perSecond(() => 0.13),
+  /* Reference runs also bill the prepared input-video seconds and images
+     past the fifth, which the estimate leaves out. */
+  "minimax-h3-highspeed": perSecond(byResolution({ "480P": 0.04, "768P": 0.06 })),
+  "minimax-h3-lite": perSecond(byResolution({ "480P": 0.025, "768P": 0.04 })),
   /* Sold as 6s and 10s clips. */
   "minimax-hailuo-2.3": {
     price: (settings) => flat(Number(settings.duration) <= 6 ? 0.28 : 0.56),
@@ -291,6 +297,8 @@ const PRICING: Record<string, Pricer> = {
   /* 1k on the base endpoint, 2k on its Pro sibling. */
   "recraft-4.1": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
   "recraft-4.1-utility": perResult({ "1k": 0.035, "2k": 0.21 }, resolutionOf),
+  "kling-image-4": perResult({ "2k": 0.063, "4k": 0.094, "8k": 0.157 }, resolutionOf),
+  "seedream-5-pro": perResult({ "1k": 0.054, "1.5k": 0.054, "2k": 0.108 }, resolutionOf),
   "qwen-image-3": perResult({ "1k": 0.04, "2k": 0.075 }, resolutionOf),
   "z-image-turbo": perResult({ "1k": 0.015, "2k": 0.015 }, resolutionOf),
   /* Token-billed; the docs' illustrative figure per rendered image. */

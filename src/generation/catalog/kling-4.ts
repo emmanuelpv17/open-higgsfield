@@ -32,3 +32,28 @@ export const kling4Edit: ModelEntry = {
   requires: ["video"],
   settings: { ...kling4Settings, aspectRatio: { ...kling4Settings.aspectRatio, default: "adaptive" } },
 };
+
+/* Kling 4.0 Flash: the same four endpoints at 720p only, for 3-20s, at a
+   lower rate. Image-to-video takes the start frame alone; a start frame with
+   references goes to reference-to-video, which takes it as image_url. */
+const kling4FlashSettings = {
+  aspectRatio: { type: "enum", values: ["16:9", "9:16", "1:1", "21:9", "adaptive"], default: "16:9" },
+  duration: { type: "range", min: 3, max: 20, default: 5 },
+} as const satisfies ModelEntry["settings"];
+
+export const kling4Flash: ModelEntry = {
+  id: "kling-4-flash",
+  surface: "video",
+  label: "Kling 4.0 Flash",
+  roles: { start: 1, reference: 10, video: 5 },
+  settings: kling4FlashSettings,
+};
+
+export const kling4FlashEdit: ModelEntry = {
+  id: "kling-4-flash-edit",
+  surface: "video",
+  label: "Kling 4.0 Flash Video Edit",
+  roles: { video: 1, reference: 10 },
+  requires: ["video"],
+  settings: { ...kling4FlashSettings, aspectRatio: { ...kling4FlashSettings.aspectRatio, default: "adaptive" } },
+};
