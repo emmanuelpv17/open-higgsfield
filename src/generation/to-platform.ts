@@ -16,7 +16,9 @@ const MAP: Record<string, Mapper> = {
   "wan-3-prime": (plane) => mapWan3(plane, "alibaba/wan-3.0-prime"),
   "wan-2.7": mapWan27,
   "wan-2.6": mapWan26,
-  "minimax-h3": mapMinimaxH3,
+  "minimax-h3": (plane) => mapMinimaxH3(plane, "minimax/h3", "2K"),
+  "minimax-h3-highspeed": (plane) => mapMinimaxH3(plane, "minimax/h3-highspeed", plane.settings.resolution),
+  "minimax-h3-lite": (plane) => mapMinimaxH3(plane, "minimax/h3-lite", plane.settings.resolution),
   "ltx-2.5-fast": (plane) => mapLtx(plane, "fast"),
   "ltx-2.5-pro": (plane) => mapLtx(plane, "pro"),
   "grok-imagine-video-1.5": mapGrokVideo,
@@ -26,6 +28,10 @@ const MAP: Record<string, Mapper> = {
   "happy-horse-1.1": (plane) => mapHappyHorse(plane, "alibaba/happy-horse/v1.1"),
   "kling-4": mapKling4,
   "kling-4-edit": mapKling4Edit,
+  "kling-4-flash": mapKling4Flash,
+  "kling-4-flash-edit": mapKling4FlashEdit,
+  "kling-image-4": mapKlingImage4,
+  "seedream-5-pro": mapSeedream5,
   "kling-o3": (plane) => mapKlingOmni(plane, "kling-video/o3"),
   "kling-o1": (plane) => mapKlingOmni(plane, "kling-video/omni"),
   "kling-o3-edit": (plane) => mapKlingOmniEdit(plane, "kling-video/o3/video-edit"),
@@ -274,7 +280,9 @@ function mapHappyHorse(plane: GenerationPlane, prefix: string): Mapped {
   return { path: `${prefix}/text-to-video`, body: { ...shared, aspect_ratio: plane.settings.aspectRatio } };
 }
 
-function mapMinimaxH3(plane: GenerationPlane): Mapped {
+/* H3 Lite's reference-to-video takes no auto or adaptive framing; those
+   leave the ratio to the endpoint's default. */
+function mapMinimaxH3(plane: GenerationPlane, prefix: string, resolution: unknown): Mapped {
   const start = urls(plane, "start")[0];
   const end = urls(plane, "end")[0];
   const refs = urls(plane, "reference");
@@ -282,28 +290,31 @@ function mapMinimaxH3(plane: GenerationPlane): Mapped {
   const audios = urls(plane, "audio");
   const shared = {
     prompt: plane.prompt.text,
-    resolution: "2K",
+    resolution,
     aspect_ratio: plane.settings.aspectRatio,
     duration: plane.settings.duration,
   };
   if (start) {
     return {
-      path: "minimax/h3/image-to-video",
+      path: `${prefix}/image-to-video`,
       body: { ...shared, image_url: start, ...(end ? { end_image_url: end } : {}) },
     };
   }
   if (refs.length || videos.length || audios.length) {
+    const framing = shared.aspect_ratio;
+    const { aspect_ratio: _dropped, ...rest } = shared;
+    const keepRatio = !(prefix === "minimax/h3-lite" && (framing === "auto" || framing === "adaptive"));
     return {
-      path: "minimax/h3/reference-to-video",
+      path: `${prefix}/reference-to-video`,
       body: {
-        ...shared,
+        ...(keepRatio ? shared : rest),
         ...(refs.length ? { image_urls: refs.slice(0, 9) } : {}),
         ...(videos.length ? { video_urls: videos.slice(0, 3) } : {}),
         ...(audios.length ? { audio_urls: audios.slice(0, 3) } : {}),
       },
     };
   }
-  return { path: "minimax/h3/text-to-video", body: shared };
+  return { path: `${prefix}/text-to-video`, body: shared };
 }
 
 function mapLtx(plane: GenerationPlane, tier: "fast" | "pro"): Mapped {
@@ -422,6 +433,80 @@ function mapKling4Edit(plane: GenerationPlane): Mapped {
       prompt: plane.prompt.text,
       video_url: urls(plane, "video")[0],
       duration: plane.settings.duration,
+      resolution: plane.settings.resolution,
+      aspect_ratio: plane.settings.aspectRatio,
+      ...(refs.length ? { image_urls: refs } : {}),
+    },
+  };
+}
+
+/* Flash renders 720p only. Its image-to-video takes the start frame alone;
+   with references the start frame rides to reference-to-video as image_url. */
+function mapKling4Flash(plane: GenerationPlane): Mapped {
+  const start = urls(plane, "start")[0];
+  const refs = urls(plane, "reference");
+  const videos = urls(plane, "video");
+  const shared = { prompt: plane.prompt.text, duration: plane.settings.duration, resolution: "720p" };
+  if (start && !refs.length && !videos.length) {
+    return { path: "kling-video/v4.0-flash/image-to-video", body: { ...shared, image_url: start } };
+  }
+  if (start || refs.length || videos.length) {
+    return {
+      path: "kling-video/v4.0-flash/reference-to-video",
+      body: {
+        ...shared,
+        aspect_ratio: plane.settings.aspectRatio,
+        ...(start ? { image_url: start } : {}),
+        ...(refs.length ? { image_urls: refs.slice(0, 10) } : {}),
+        ...(videos.length ? { video_urls: videos.slice(0, 5) } : {}),
+      },
+    };
+  }
+  const aspect = plane.settings.aspectRatio;
+  return {
+    path: "kling-video/v4.0-flash/text-to-video",
+    body: { ...shared, ...(aspect === "adaptive" ? {} : { aspect_ratio: aspect }) },
+  };
+}
+
+function mapKling4FlashEdit(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference");
+  return {
+    path: "kling-video/v4.0-flash/video-edit",
+    body: {
+      prompt: plane.prompt.text,
+      video_url: urls(plane, "video")[0],
+      duration: plane.settings.duration,
+      resolution: "720p",
+      aspect_ratio: plane.settings.aspectRatio,
+      ...(refs.length ? { image_urls: refs.slice(0, 10) } : {}),
+    },
+  };
+}
+
+/* References make it an edit; a count above one, a series of that many. */
+function mapKlingImage4(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference").slice(0, 10);
+  const count = Math.min(10, Math.max(1, Number(plane.settings.batchSize) || 1));
+  const base = refs.length ? "kling-image/v4.0/edit" : "kling-image/v4.0/text-to-image";
+  return {
+    path: count > 1 ? `${base}/series` : base,
+    body: {
+      prompt: plane.prompt.text,
+      resolution: plane.settings.resolution,
+      aspect_ratio: plane.settings.aspectRatio,
+      ...(refs.length ? { image_urls: refs } : {}),
+      ...(count > 1 ? { series_amount: count } : {}),
+    },
+  };
+}
+
+function mapSeedream5(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference").slice(0, 10);
+  return {
+    path: refs.length ? "bytedance/seedream/v5.0/pro/edit" : "bytedance/seedream/v5.0/pro/text-to-image",
+    body: {
+      prompt: plane.prompt.text,
       resolution: plane.settings.resolution,
       aspect_ratio: plane.settings.aspectRatio,
       ...(refs.length ? { image_urls: refs } : {}),
